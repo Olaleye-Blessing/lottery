@@ -6,17 +6,28 @@ import {Lottery} from "./../src/Lottery.sol";
 import {HelperConfig} from "./../script/HelperConfig.s.sol";
 
 contract DeployLottery is Script {
-    function run() external returns (Lottery) {
-        HelperConfig helperConfig = new HelperConfig();
+    uint256 public BASE_SEPOLIA_CHAINID = 84532;
+    address immutable i_deployer;
+
+    constructor() {
+        i_deployer = msg.sender;
+    }
+
+    function run() external returns (Lottery, HelperConfig.Config memory) {
+        HelperConfig helperConfig = new HelperConfig(i_deployer);
 
         HelperConfig.Config memory config = helperConfig.getConfig();
 
-        vm.startBroadcast();
+        if (block.chainid == BASE_SEPOLIA_CHAINID) {
+            vm.startBroadcast();
+        } else {
+            vm.startBroadcast(i_deployer);
+        }
 
-        Lottery lottery = new Lottery(config.minimumRoundTicket);
+        Lottery lottery = new Lottery(config.minimumRoundTicket, config.vrfCoordinator, config.vrfSubId, config.keyHash);
 
         vm.stopBroadcast();
 
-        return lottery;
+        return (lottery, config);
     }
 }
