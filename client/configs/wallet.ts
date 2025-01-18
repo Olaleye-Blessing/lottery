@@ -2,7 +2,6 @@
 
 import { http, createConfig } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
-import { coinbaseWallet, injected, metaMask } from 'wagmi/connectors';
 import { clientEnv } from '@/constants/env/client';
 import { getDefaultConfig } from 'connectkit';
 import { appDescription } from '@/utils/site-metadata';
@@ -11,18 +10,6 @@ import { anvil } from './chains';
 export const walletConfig = createConfig(
 	getDefaultConfig({
 		ssr: true,
-		connectors: [
-			injected(),
-			metaMask({
-				dappMetadata: {
-					// TODO: Update metata
-					name: 'Lottery',
-					url: '',
-					iconUrl: '',
-				},
-			}),
-			coinbaseWallet(),
-		],
 		chains: (() =>
 			process.env.NODE_ENV === 'production' ? [baseSepolia] : [anvil])(),
 		transports:
@@ -41,7 +28,7 @@ export const walletConfig = createConfig(
 
 		// TODO: Update this info
 		// Required App Info
-		appName: 'Crowdchain',
+		appName: 'Leto',
 
 		// Optional App Info
 		appDescription: appDescription,
