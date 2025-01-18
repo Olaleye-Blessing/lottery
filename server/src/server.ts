@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import app from './app';
+import { connectDBs } from './dbs/init';
 
 const port = process.env.PORT || 7000;
 
@@ -9,6 +10,8 @@ const main = async () => {
   const server = app.listen(port, () => {
     console.log(`[server]: Server is running on port: ${port}`);
   });
+
+  await connectDBs();
 
   process.on('unhandledRejection', (err: Error) => {
     console.log('____ 🔥 Unhandled rejection ____');

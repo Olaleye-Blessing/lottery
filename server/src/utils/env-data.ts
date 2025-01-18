@@ -10,6 +10,10 @@ const envSchema = z.object({
       z.literal('production'),
     ])
     .default('development'),
+  BASE_SEPOLIA_ALCHEMY_RPC_URL: z.string().url(),
+  ANVIL_RPC: z.string().url(),
+  LETO_ADDRESS: z.string(),
+  REDIS_URL: z.string(),
 });
 
 export type Environment = z.infer<typeof envSchema>;
