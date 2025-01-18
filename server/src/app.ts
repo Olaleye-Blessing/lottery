@@ -4,6 +4,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { envVars } from './utils/env-data';
 import { globalErrorHanlder } from './utils/errors/global-err-handler';
+import letoRoute from './leto/router';
 
 const app = express();
 
@@ -21,6 +22,8 @@ app.use(cookieParser());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use('/api/v1/leto', letoRoute);
 
 app.use(globalErrorHanlder);
 
