@@ -75,4 +75,53 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-extrabold my-1;
+  }
+
+  h1 {
+    font-size: 2em;
+  }
+
+  h2 {
+    font-size: 1.5em;
+  }
+
+  h3 {
+    font-size: 1.17em;
+  }
+
+  h4 {
+    font-size: 1em;
+  }
+
+  h5 {
+    font-size: 0.83em;
+  }
+
+  h6 {
+    font-size: 0.67em;
+  }
+
+  button {
+    @apply disabled:cursor-not-allowed;
+  }
+
+  .error {
+    @apply text-red-700 font-semibold;
+  }
+
+  .layout {
+    @apply px-4 mx-auto w-full max-w-7xl;
+  }
+
+  .more__shadow {
+    box-shadow: rgba(212, 218, 238, 0.7) 0px 3px 20px;
+  }
 }

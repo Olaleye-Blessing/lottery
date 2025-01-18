@@ -8,6 +8,7 @@ const envSchema = z.object({
 	NEXT_PUBLIC_ANVIL_CHAIN_ID: z.coerce.number(),
 	NEXT_PUBLIC_BASE_SEPOLIA_ALCHEMY_RPC_URL: z.string(),
 	NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: z.string(),
+	NEXT_PUBLIC_LETO_ADDRESS: z.string(),
 });
 
 const parsedSchema = envSchema.safeParse({
@@ -18,6 +19,7 @@ const parsedSchema = envSchema.safeParse({
 		process.env.NEXT_PUBLIC_BASE_SEPOLIA_ALCHEMY_RPC_URL,
 	NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID:
 		process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+	NEXT_PUBLIC_LETO_ADDRESS: process.env.NEXT_PUBLIC_LETO_ADDRESS,
 });
 
 if (!parsedSchema.success) {

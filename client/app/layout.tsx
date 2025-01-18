@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
+import { Toaster } from 'react-hot-toast';
 import './globals.css';
 import Providers from '@/components/providers';
 import Navbar from '@/components/navbar';
@@ -31,6 +32,7 @@ export default function RootLayout({
 				className={`${geistSans.variable} ${geistMono.variable} antialiased`}
 			>
 				<Providers>
+					<Toaster />
 					<Navbar />
 					{children}
 				</Providers>
