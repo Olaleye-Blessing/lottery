@@ -1,13 +1,11 @@
 'use client';
 
-import { useReadContract } from 'wagmi';
-import { letoConfig } from '@/configs/leto-contract-config';
-import { constructRound } from '@/utils/construct-round';
 import Loading from '@/app/loading';
 import { humanReadAbleDate } from '@/utils/dates';
 import Box from './box';
-import EtherLabel from './ether-label';
+import EtherLabel from '@/components/ether-label';
 import { useLetoRequest } from '@/hooks/use-leto-request';
+import { useGetRound } from '@/hooks/use-get-round';
 
 export default function Header() {
 	const { data: letoPrice, error: letoPriceError } = useLetoRequest<{
@@ -17,12 +15,7 @@ export default function Header() {
 		options: { queryKey: ['leto', 'ticket-price'] },
 	});
 
-	const { data: roundDataResponse, error } = useReadContract({
-		...letoConfig,
-		functionName: 'getRoundData',
-	});
-
-	const round = roundDataResponse && constructRound(roundDataResponse);
+	const { round, error } = useGetRound();
 
 	return (
 		<header className='flex flex-col text-center sm:flex-row sm:items-center sm:justify-center'>

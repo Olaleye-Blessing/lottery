@@ -6,6 +6,7 @@ export const letoAbi = parseAbi([
 
 	// ============ functions ============
 	'function ticketPrice() external view returns (uint256)',
+	'function getRoundData(uint256 round) external view returns (Round memory)',
 	'function getRoundData() external view returns (Round memory)',
 	'function buyTicket(uint8[6] calldata numbers) external payable',
 	'function buyTickets(uint8[6][] calldata ticketsNumbers) external payable',
@@ -17,4 +18,5 @@ export const letoAbi = parseAbi([
 	'error Lottery__RoundNotActive()',
 	'error Lottery__InvalidTicketPaymentAmount()',
 	'error Lottery__InvalidTicketNumbers(string reason)',
+	'error Lottery__InvalidRound()',
 ]);
