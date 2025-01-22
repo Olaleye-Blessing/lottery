@@ -13,12 +13,13 @@ contract Lottery is VRFConsumerBaseV2Plus {
         /// @notice The round is currently open for ticket purchases.
         /// @dev Players can buy tickets during this status.
         Active,
-        /// @notice The round has ended, and the contract is checking the results.
-        /// @dev No new tickets can be purchased during this status.
-        Checking,
-        /// @notice The round has been completed, and all results have been finalized.
-        /// @dev Winners have been determined, and prizes have been distributed.
-        Completed
+        /// @notice The round has eneded and the contract is generating the lucky numbers
+        Drawing,
+        /// @notice Winning tickets need to register their ticket for payout within the timefrme.
+        /// @dev Calculate the amount each ticket is entitled to.
+        RegisterWinningTickets,
+        /// @notice Winning tickets can claim their prices
+        Claimable
     }
 
     error Lottery__RoundNotActive();
@@ -27,17 +28,29 @@ contract Lottery is VRFConsumerBaseV2Plus {
     error Lottery__InvalidRound();
     error Lottery__RoundStillActive();
     error Lottery__NotEnoughTicketToPickAWinner();
+    error Lottery__IncorrectRoundStatus(RoundStatus current, RoundStatus expected, string message);
+    error Lottery__TicketHasBeenClaimed();
+    error Lottery__TicketHasBeenRegistered();
+    error Lottery__TicketNotRegistered();
+    error Lottery__TicketNotOwner();
+    error Lottery__FundTransferFailed();
+    error Lottery__TooEarlyForWinningTicketTime();
+    error Lottery__TicketNumberNotTheSameAsRoundNumber();
 
     event TicketPurchased(address indexed player, uint256 indexed roundId, uint8[6] numbers);
     event RoundExtended(uint256 indexed round);
     event NewRoundStarted(uint256 indexed round);
+    event RoundClaimable(uint256 indexed round);
+    event PrizeClaimed(uint256 indexed roundId, address indexed player, uint256 indexed ticketId, uint256 amount);
 
     struct Round {
         uint256 id;
         uint256 startTime;
         uint256 endTime;
+        uint256 registerWinningTicketTime;
         uint256 prize;
         uint256 totalTickets;
+        uint256 totalWinningTickets;
         uint8[6] winningNumbers;
         RoundStatus status;
     }
@@ -45,6 +58,8 @@ contract Lottery is VRFConsumerBaseV2Plus {
     struct Ticket {
         uint8[6] numbers;
         bool claimed;
+        bool resgistered;
+        address player;
     }
 
     struct PlayerRoundInfo {
@@ -57,17 +72,21 @@ contract Lottery is VRFConsumerBaseV2Plus {
     uint256 public constant TOTAL_TICKET_NUMBERS = 6;
     uint8 public constant MAX_NUMBER = 99;
     uint16 private constant VRF_RANDOM_REQUEST_CONFIRMATIONS = 3;
+    uint256 private constant ZEROS_PRECISION = 1e18;
     uint256 public currentRound = 0;
+    uint256 public lotteryFee = 1e16; // 1%;
     uint256 public ticketPrice = 0.002 ether;
     uint256 public roundDuration = 7 days;
     uint256 public extendRoundBy = 3 days;
+    uint256 public registerWinningTicketTimeframe = 3 hours;
     uint256 public minimumRoundTicket;
     uint256 private immutable i_vrfSubId;
     bytes32 private immutable i_keyHash;
 
     mapping(uint256 roundId => Round) public rounds;
-    mapping(uint256 roundId => mapping(address player => PlayerRoundInfo)) playerRoundData;
-    mapping(address player => uint256[]) public playerParticipatedRound;
+    mapping(uint256 roundId => mapping(uint256 ticketId => Ticket ticket)) private roundTickets;
+    mapping(uint256 roundId => mapping(address player => uint256[] ticketIds)) private playerTickets;
+    mapping(address player => uint256[] roundIds) public playerRounds;
     mapping(uint256 roundId => uint256 vrfRequestId) private roundRequests;
 
     constructor(uint256 _minimumRoundTicket, address _vrfCoordinator, uint256 _vrfSubId, bytes32 _keyHash)
@@ -89,11 +108,9 @@ contract Lottery is VRFConsumerBaseV2Plus {
     function buyTicket(uint8[6] calldata numbers) external payable {
         _validateRoundData(1, msg.value);
         _validateTicketNumbers(numbers);
-        _processTicketCreation(numbers);
+        _processTicketCreation(numbers, msg.sender);
 
-        if (playerParticipatedRound[msg.sender].length == 0) {
-            playerParticipatedRound[msg.sender].push(currentRound);
-        }
+        _updatePlayerRounds(msg.sender);
     }
 
     function buyTickets(uint8[6][] calldata ticketsNumbers) external payable {
@@ -105,12 +122,10 @@ contract Lottery is VRFConsumerBaseV2Plus {
         for (ticketIndex; ticketIndex < totalTickets; ticketIndex++) {
             uint8[6] calldata numbers = ticketsNumbers[ticketIndex];
             _validateTicketNumbers(numbers);
-            _processTicketCreation(numbers);
+            _processTicketCreation(numbers, msg.sender);
         }
 
-        if (playerParticipatedRound[msg.sender].length == 0) {
-            playerParticipatedRound[msg.sender].push(currentRound);
-        }
+        _updatePlayerRounds(msg.sender);
     }
 
     // TODO: Use chainlink automation for this
@@ -126,8 +141,74 @@ contract Lottery is VRFConsumerBaseV2Plus {
             return;
         }
 
-        rounds[currentRound].status = RoundStatus.Checking;
+        rounds[currentRound].status = RoundStatus.Drawing;
         _getLotteryNumbers();
+    }
+
+    function registerWinningTicket(uint256 roundId, uint256 ticketId) external {
+        Round memory _round = rounds[roundId];
+
+        if (_round.status != RoundStatus.RegisterWinningTickets) revert Lottery__IncorrectRoundStatus(_round.status, RoundStatus.RegisterWinningTickets, "");
+
+        Ticket memory ticket = roundTickets[roundId][ticketId];
+
+        if (ticket.resgistered) revert Lottery__TicketHasBeenRegistered();
+        if (ticket.claimed) revert Lottery__TicketHasBeenClaimed();
+
+        if (ticket.player != msg.sender) revert Lottery__TicketNotOwner();
+
+        uint8[6] memory roundNumbers = _round.winningNumbers; // [1, 2, 3, 4, 5, 6]
+        uint8[6] memory ticketNumbers = ticket.numbers; // [6, 5, 4, 3, 2, 1]
+
+        _validateWinningTicket(roundNumbers, ticketNumbers);
+
+        ticket.resgistered = true;
+        roundTickets[roundId][ticketId] = ticket;
+        _round.totalWinningTickets += 1;
+
+        rounds[roundId] = _round;
+    }
+
+    // TODO: Use Chainlink automation
+    function makeRoundPrizeClaimable(uint256 round) external onlyOwner {
+        Round memory _round = rounds[round];
+
+        if (_round.status != RoundStatus.RegisterWinningTickets) revert Lottery__IncorrectRoundStatus(_round.status, RoundStatus.RegisterWinningTickets, "");
+        if (_round.registerWinningTicketTime > block.timestamp) revert Lottery__TooEarlyForWinningTicketTime();
+
+        uint256 fee = (_round.prize * lotteryFee) / ZEROS_PRECISION;
+        (bool success,) = payable(owner()).call{value: fee}("");
+
+        if (!success) revert Lottery__FundTransferFailed();
+
+        _round.prize = _round.prize - fee;
+        _round.status = RoundStatus.Claimable;
+
+        rounds[round] = _round;
+
+        emit RoundClaimable(round);
+    }
+
+    function claimPrize(uint256 roundId, uint256 ticketId) external {
+        Round memory _round = rounds[roundId];
+
+        if (_round.status != RoundStatus.Claimable) revert Lottery__IncorrectRoundStatus(_round.status, RoundStatus.Claimable, "");
+
+        Ticket memory ticket = roundTickets[roundId][ticketId];
+
+        if (!ticket.resgistered) revert Lottery__TicketNotRegistered();
+        if (ticket.claimed) revert Lottery__TicketHasBeenClaimed();
+        if (ticket.player != msg.sender) revert Lottery__TicketNotOwner();
+
+        roundTickets[roundId][ticketId].claimed = true;
+
+        uint256 prizeAmount = _round.prize / _round.totalWinningTickets;
+
+        (bool paid,) = payable(msg.sender).call{value: prizeAmount}("");
+
+        if (!paid) revert Lottery__FundTransferFailed();
+
+        emit PrizeClaimed(roundId, msg.sender, ticketId, prizeAmount);
     }
 
     function fulfillRandomWords(uint256, /* requestId */ uint256[] calldata randomWords) internal override {
@@ -142,7 +223,8 @@ contract Lottery is VRFConsumerBaseV2Plus {
 
         Round memory _currentRound = rounds[currentRound];
         _currentRound.winningNumbers = winningNumbers;
-        _currentRound.status = RoundStatus.Completed;
+        _currentRound.status = RoundStatus.RegisterWinningTickets;
+        _currentRound.registerWinningTicketTime = block.timestamp + registerWinningTicketTimeframe;
         rounds[currentRound] = _currentRound;
 
         currentRound += 1;
@@ -150,12 +232,37 @@ contract Lottery is VRFConsumerBaseV2Plus {
         emit NewRoundStarted(0);
     }
 
-    function getRoundPlayerTickets(address player) external view returns (Ticket[] memory) {
-        return _getRoundPlayerTickets(player, currentRound);
+    function getPlayerTickets(address player, uint256 roundId)
+        external
+        view
+        returns (uint256[] memory, Ticket[] memory)
+    {
+        return _getPlayerTickets(player, roundId);
     }
 
-    function getRoundPlayerTickets(address player, uint256 round) external view returns (Ticket[] memory) {
-        return _getRoundPlayerTickets(player, round);
+    function getPlayerTickets(uint256 roundId) external view returns (uint256[] memory, Ticket[] memory) {
+        return _getPlayerTickets(msg.sender, roundId);
+    }
+
+    function _getPlayerTickets(address player, uint256 roundId)
+        private
+        view
+        returns (uint256[] memory, Ticket[] memory)
+    {
+        uint256[] memory ticketIds = playerTickets[roundId][player];
+        uint256 totalTickets = ticketIds.length;
+        Ticket[] memory tickets = new Ticket[](totalTickets);
+
+        for (uint256 index = 0; index < totalTickets;) {
+            uint256 ticketId = ticketIds[index];
+            tickets[index] = roundTickets[roundId][ticketId];
+
+            unchecked {
+                index++;
+            }
+        }
+
+        return (ticketIds, tickets);
     }
 
     function getRoundData(uint256 round) external view validRound(round) returns (Round memory) {
@@ -174,12 +281,12 @@ contract Lottery is VRFConsumerBaseV2Plus {
         return roundRequests[round];
     }
 
-    function _getRoundData(uint256 round) private view returns (Round memory) {
-        return rounds[round];
+    function getPlayerRounds(address player) external view returns (uint256[] memory) {
+        return playerRounds[player];
     }
 
-    function _getRoundPlayerTickets(address player, uint256 round) private view returns (Ticket[] memory) {
-        return playerRoundData[round][player].tickets;
+    function _getRoundData(uint256 round) private view returns (Round memory) {
+        return rounds[round];
     }
 
     function _validateRoundData(uint256 totalTickets, uint256 amountPaid) private view {
@@ -197,9 +304,12 @@ contract Lottery is VRFConsumerBaseV2Plus {
         }
     }
 
-    function _processTicketCreation(uint8[6] calldata numbers) private {
-        Ticket memory newTicket = Ticket({numbers: numbers, claimed: false});
-        playerRoundData[currentRound][msg.sender].tickets.push(newTicket);
+    function _processTicketCreation(uint8[6] calldata numbers, address player) private {
+        uint256 ticketId = rounds[currentRound].totalTickets;
+        Ticket memory newTicket = Ticket({numbers: numbers, claimed: false, resgistered: false, player: player});
+        roundTickets[currentRound][ticketId] = newTicket;
+        playerTickets[currentRound][player].push(ticketId);
+
         rounds[currentRound].prize += ticketPrice;
         rounds[currentRound].totalTickets += 1;
 
@@ -235,12 +345,15 @@ contract Lottery is VRFConsumerBaseV2Plus {
 
     function _initRound(uint256 round) private view returns (Round memory) {
         uint8[6] memory winningNumbers;
+
         return Round({
             id: round,
             startTime: block.timestamp,
             endTime: block.timestamp + roundDuration,
+            registerWinningTicketTime: 0,
             prize: 0,
             totalTickets: 0,
+            totalWinningTickets: 0,
             winningNumbers: winningNumbers,
             status: RoundStatus.Active
         });
@@ -259,5 +372,36 @@ contract Lottery is VRFConsumerBaseV2Plus {
         );
 
         roundRequests[currentRound] = requestId;
+    }
+
+    function _updatePlayerRounds(address player) private {
+        uint256[] memory roundIds = playerRounds[player];
+
+        if (roundIds.length != 0 && roundIds[roundIds.length - 1] != currentRound) {
+            playerRounds[player].push(currentRound);
+        }
+    }
+
+    function _validateWinningTicket(uint8[6] memory roundNumbers, uint8[6] memory ticketNumbers) private pure {
+        for (uint256 i = 0; i < TOTAL_TICKET_NUMBERS;) {
+            uint256 found = 0;
+
+            for (uint256 j = 0; j < TOTAL_TICKET_NUMBERS;) {
+                if (ticketNumbers[i] == roundNumbers[j]) {
+                    found = 1;
+                    break;
+                }
+
+                unchecked {
+                    j++;
+                }
+            }
+
+            if (found == 0) revert Lottery__TicketNumberNotTheSameAsRoundNumber();
+
+            unchecked {
+                i++;
+            }
+        }
     }
 }
