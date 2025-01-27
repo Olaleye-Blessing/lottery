@@ -60,6 +60,10 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     /// @notice Emitted when a round is extended
     /// @param round ID of the extended round
     event RoundExtended(uint256 indexed round);
+    /// @notice Emitted when a round's winning numbers have been requested from VRF
+    /// @dev This event is triggered during performUpkeep when transitioning to Drawing status
+    /// @param round The ID of the round for which numbers are being drawn
+    event RoundDrawn(uint256 indexed round);
     /// @notice Emitted when a new round starts
     /// @param round ID of the new round
     event NewRoundStarted(uint256 indexed round);
@@ -283,6 +287,8 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     /// @param requestId ID of the VRF request
     /// @param randomWords Array of random numbers provided by VRF
     function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) internal override {
+        emit RoundDrawn(currentRound);
+
         uint8[6] memory winningNumbers;
         for (uint8 index = 0; index < TOTAL_TICKET_NUMBERS;) {
             winningNumbers[index] = uint8(randomWords[index] % 99);

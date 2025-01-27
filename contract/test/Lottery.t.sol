@@ -13,6 +13,12 @@ contract LotteryTest is Test {
     uint256 initialTicketPrice;
     uint8[6] private MOCK_CORRECT_RANDOM_NUMBERS = [32, 78, 61, 97, 0, 46];
     uint8[6] private MOCK_CORRECT_RANDOM_NUMBERS_ORDER_2 = [78, 32, 61, 0, 46, 97];
+    uint256 private constant EXTEND_ROUND_BY = 3 days;
+    uint256 private constant PERFORM_UPKEEP_ROUND_DRAWING = 1;
+    uint256 private constant PERFORM_UPKEEP_ROUND_EXTEND = 2;
+    uint256 private constant PERFORM_UPKEEP_ROUND_CLAIMABLE = 3;
+    uint256 private constant REGISTRATION_WINNING_TICKET_TIMEFRAME = 3 hours;
+
     address BLESSING = makeAddr("blessing");
     address BOB = makeAddr("bob");
     address ALICE = makeAddr("alice");
@@ -137,129 +143,234 @@ contract LotteryTest is Test {
         assertEq(updatedRound.totalTickets, 1);
     }
 
-    function test_requestWinner() external {
-        uint8[6] memory blessingTicketNumbers = [1, 2, 3, 4, 5, 6];
-        _buyTicket(BLESSING, blessingTicketNumbers);
-        uint8[6] memory bobTicketNumbers = [7, 8, 9, 10, 11, 12];
-        _buyTicket(BOB, bobTicketNumbers);
-        uint8[6] memory aliceTicketNumbers = [30, 31, 32, 44, 67, 34];
-        _buyTicket(ALICE, aliceTicketNumbers);
+    function test_extendRoundDurationWhenFewerTicketsAreBought() external {
+        uint256 currentRound = 0;
 
-        vm.warp(lottery.roundDuration() + 1 days);
+        Lottery.Round memory round = lottery.getRoundData(0);
 
-        vm.startPrank(DEPLOYER);
+        uint256 initialEndTime = round.endTime;
 
-        lottery.requestWinner();
-        uint256 requestId = lottery.getRoundRequestId(0);
-        VRFCoordinatorV2_5Mock(config.vrfCoordinator).fulfillRandomWords(requestId, address(lottery));
+        assertEq(round.totalTickets, 0);
 
-        vm.stopPrank();
+        vm.warp(block.timestamp + lottery.roundDuration() + 1 days);
 
-        Lottery.Round memory currentRound = lottery.getRoundData(0);
+        (bool upkeepNeeded, bytes memory performData) = lottery.checkUpkeep("");
 
-        assertEq(uint256(currentRound.status), uint256(Lottery.RoundStatus.RegisterWinningTickets));
+        assertEq(upkeepNeeded, true);
+
+        vm.expectEmit(true, true, true, true, address(lottery));
+        emit Lottery.RoundExtended(currentRound);
+        lottery.performUpkeep(performData);
+
+        round = lottery.getRoundData(0);
+
+        assertEq(round.endTime, initialEndTime + EXTEND_ROUND_BY);
     }
 
-    function test_onlyContractOwnerCanRequestWinner() external {
-        uint8[6] memory blessingTicketNumbers = [1, 2, 3, 4, 5, 6];
-        _buyTicket(BLESSING, blessingTicketNumbers);
-        uint8[6] memory bobTicketNumbers = [7, 8, 9, 10, 11, 12];
-        _buyTicket(BOB, bobTicketNumbers);
-        uint8[6] memory aliceTicketNumbers = [30, 31, 32, 44, 67, 34];
-        _buyTicket(ALICE, aliceTicketNumbers);
-
-        vm.warp(lottery.roundDuration() + 1 days);
-
-        vm.startPrank(BLESSING);
-        vm.expectRevert("Only callable by owner");
-        lottery.requestWinner();
-    }
-
-    function test_registerWinningTickets() external {
-        uint256 roundId = 0;
+    function test_drawRound() external {
+        uint256 currentRound = 0;
 
         uint8[6] memory ticket0 = [1, 2, 3, 4, 5, 6];
         uint8[6] memory ticket1 = [7, 8, 9, 10, 11, 12];
-        uint8[6] memory ticket2 = MOCK_CORRECT_RANDOM_NUMBERS;
-
-        uint256 tickeidWithCorrectNumbers = 2;
+        uint8[6] memory ticket2 = [2, 3, 45, 67, 88, 99];
 
         uint8[6][] memory ticketsNumbers = new uint8[6][](3);
         ticketsNumbers[0] = ticket0;
         ticketsNumbers[1] = ticket1;
         ticketsNumbers[2] = ticket2;
-        _buyAndRequestRandomNumber(roundId, BLESSING, ticketsNumbers);
+
+        _buyTickets(BLESSING, ticketsNumbers, currentRound);
+
+        vm.warp(block.timestamp + lottery.roundDuration() + 1 days);
+
+        (, bytes memory performData) = lottery.checkUpkeep("");
+
+        lottery.performUpkeep(performData);
+
+        Lottery.Round memory round = lottery.getRoundData(currentRound);
+
+        assertEq(uint8(round.status), uint8(Lottery.RoundStatus.Drawing));
+
+        vm.prank(DEPLOYER);
+        uint256 requestId = lottery.getRoundRequestId(currentRound);
+
+        vm.expectEmit(true, true, true, true, address(lottery));
+        emit Lottery.RoundDrawn(currentRound);
+        VRFCoordinatorV2_5Mock(config.vrfCoordinator).fulfillRandomWords(requestId, address(lottery));
+
+        round = lottery.getRoundData(currentRound);
+
+        assertEq(round.winningNumbers[0], MOCK_CORRECT_RANDOM_NUMBERS[0]);
+        assertEq(round.winningNumbers[1], MOCK_CORRECT_RANDOM_NUMBERS[1]);
+        assertEq(round.winningNumbers[2], MOCK_CORRECT_RANDOM_NUMBERS[2]);
+        assertEq(round.winningNumbers[3], MOCK_CORRECT_RANDOM_NUMBERS[3]);
+        assertEq(round.winningNumbers[4], MOCK_CORRECT_RANDOM_NUMBERS[4]);
+        assertEq(round.winningNumbers[5], MOCK_CORRECT_RANDOM_NUMBERS[5]);
+
+        assertEq(uint8(round.status), uint8(Lottery.RoundStatus.RegisterWinningTickets));
+    }
+
+    function test_winningTicketsRegisteration() external {
+        uint256 currentRound = 0;
+
+        uint8[6] memory ticket0 = [1, 2, 3, 4, 5, 6];
+        uint8[6] memory ticket1 = MOCK_CORRECT_RANDOM_NUMBERS_ORDER_2;
+        uint8[6] memory ticket2 = [2, 3, 45, 67, 88, 99];
+        uint8[6] memory ticket3 = MOCK_CORRECT_RANDOM_NUMBERS;
+
+        uint8[6][] memory blessingTicketsNumbers = new uint8[6][](2);
+        uint8[6][] memory aliceTicketsNumbers = new uint8[6][](2);
+
+        aliceTicketsNumbers[0] = ticket0;
+        aliceTicketsNumbers[1] = ticket1;
+
+        blessingTicketsNumbers[0] = ticket2;
+        blessingTicketsNumbers[1] = ticket3;
+
+        _buyTickets(BLESSING, blessingTicketsNumbers, currentRound);
+        _buyTickets(ALICE, aliceTicketsNumbers, currentRound);
+
+        uint256 blessingWinningTicketId = 1;
+        uint256 aliceWinningTicketId = 3;
+
+        _drawRound(currentRound);
 
         vm.prank(BLESSING);
-        lottery.registerWinningTicket(roundId, tickeidWithCorrectNumbers);
+        lottery.registerWinningTicket(currentRound, blessingWinningTicketId);
+
+        vm.prank(ALICE);
+        lottery.registerWinningTicket(currentRound, aliceWinningTicketId);
+
+        vm.prank(BLESSING);
+        vm.expectRevert(Lottery.Lottery__TicketNumberNotTheSameAsRoundNumber.selector);
+        lottery.registerWinningTicket(currentRound, 0);
+
+        Lottery.Round memory round = lottery.getRoundData(currentRound);
+        assertEq(round.totalWinningTickets, 2);
     }
 
     function test_registerWinningTicketRevertsIfNotTicketOwner() external {
-        uint256 roundId = 0;
+        uint256 currentRound = 0;
 
-        _buyAndRequestRandomNumber(roundId, BLESSING);
+        uint8[6] memory ticket0 = [1, 2, 3, 4, 5, 6];
+        uint8[6] memory ticket1 = MOCK_CORRECT_RANDOM_NUMBERS_ORDER_2;
+        uint8[6] memory ticket2 = [2, 3, 45, 67, 88, 99];
 
-        vm.prank(BOB);
+        uint8[6][] memory blessingTicketsNumbers = new uint8[6][](3);
+
+        blessingTicketsNumbers[0] = ticket0;
+        blessingTicketsNumbers[1] = ticket1;
+        blessingTicketsNumbers[2] = ticket2;
+
+        _buyTickets(BLESSING, blessingTicketsNumbers, currentRound);
+
+        uint256 blessingWinningTicketId = 1;
+
+        _drawRound(currentRound);
+
+        vm.prank(ALICE);
         vm.expectRevert(Lottery.Lottery__TicketNotOwner.selector);
-        lottery.registerWinningTicket(roundId, 2);
+        lottery.registerWinningTicket(currentRound, blessingWinningTicketId);
+
+        Lottery.Round memory round = lottery.getRoundData(currentRound);
+        assertEq(round.totalWinningTickets, 0);
     }
 
-    function test_registerWinningTicketRevertsIfNotInCorrectStatus() external {
-        uint8[6] memory blessingTicketNumbers = [1, 2, 3, 4, 5, 6];
-        _buyTicket(BLESSING, blessingTicketNumbers);
+    function test_registerWinningTicketRevertsIfDoubleRegistration() external {
+        uint256 currentRound = 0;
 
-        uint256 roundId = 0;
-        uint256 ticketId = 0;
+        uint8[6] memory ticket0 = [1, 2, 3, 4, 5, 6];
+        uint8[6] memory ticket1 = MOCK_CORRECT_RANDOM_NUMBERS_ORDER_2;
+        uint8[6] memory ticket2 = [2, 3, 45, 67, 88, 99];
 
-        Lottery.Round memory currentRound = lottery.getRoundData(roundId);
+        uint8[6][] memory blessingTicketsNumbers = new uint8[6][](3);
+
+        blessingTicketsNumbers[0] = ticket0;
+        blessingTicketsNumbers[1] = ticket1;
+        blessingTicketsNumbers[2] = ticket2;
+
+        _buyTickets(BLESSING, blessingTicketsNumbers, currentRound);
+
+        uint256 blessingWinningTicketId = 1;
+
+        _drawRound(currentRound);
+
+        vm.prank(BLESSING);
+        lottery.registerWinningTicket(currentRound, blessingWinningTicketId);
+
+        vm.prank(BLESSING);
+        vm.expectRevert(Lottery.Lottery__TicketHasBeenRegistered.selector);
+        lottery.registerWinningTicket(currentRound, blessingWinningTicketId);
+
+        Lottery.Round memory round = lottery.getRoundData(currentRound);
+        assertEq(round.totalWinningTickets, 1);
+    }
+
+    function test_registerWinningTicketRevertsIfNotTimeForRegistration() external {
+        uint256 currentRound = 0;
+
+        uint8[6] memory ticket0 = [1, 2, 3, 4, 5, 6];
+        uint8[6] memory ticket1 = MOCK_CORRECT_RANDOM_NUMBERS_ORDER_2;
+        uint8[6] memory ticket2 = [2, 3, 45, 67, 88, 99];
+
+        uint8[6][] memory blessingTicketsNumbers = new uint8[6][](3);
+
+        blessingTicketsNumbers[0] = ticket0;
+        blessingTicketsNumbers[1] = ticket1;
+        blessingTicketsNumbers[2] = ticket2;
+
+        _buyTickets(BLESSING, blessingTicketsNumbers, currentRound);
+
+        uint256 blessingWinningTicketId = 1;
+
+        Lottery.Round memory round = lottery.getRoundData(currentRound);
 
         vm.prank(BLESSING);
         vm.expectRevert(
             abi.encodeWithSelector(
                 Lottery.Lottery__IncorrectRoundStatus.selector,
-                currentRound.status,
-                Lottery.RoundStatus.RegisterWinningTickets,
+                uint8(round.status),
+                uint8(Lottery.RoundStatus.RegisterWinningTickets),
                 ""
             )
         );
-        lottery.registerWinningTicket(roundId, ticketId);
+        lottery.registerWinningTicket(currentRound, blessingWinningTicketId);
     }
 
-    function test_claimPrize() external {
-        uint256 roundId = 0;
-        uint8[6] memory blessingTicketNumbers = [1, 2, 3, 4, 5, 6];
-        _buyTicket(BLESSING, blessingTicketNumbers);
-        uint8[6] memory bobTicketNumbers = MOCK_CORRECT_RANDOM_NUMBERS;
-        _buyTicket(BOB, bobTicketNumbers);
-        uint8[6] memory aliceTicketNumbers = [30, 31, 32, 44, 67, 34];
-        _buyTicket(ALICE, aliceTicketNumbers);
-        uint8[6] memory adamTicketNumbers = MOCK_CORRECT_RANDOM_NUMBERS_ORDER_2;
-        _buyTicket(ADAM, adamTicketNumbers);
+    function test_ClaimWinningTicket() external {
+        uint256 currentRound = 0;
 
-        uint256 BOB_TICKET_ID = 1;
-        uint256 ADAM_TICKET_ID = 3;
+        uint8[6] memory ticket0 = [1, 2, 3, 4, 5, 6];
+        uint8[6] memory ticket1 = MOCK_CORRECT_RANDOM_NUMBERS_ORDER_2;
+        uint8[6] memory ticket2 = [2, 3, 45, 67, 88, 99];
+        uint8[6] memory ticket3 = MOCK_CORRECT_RANDOM_NUMBERS;
 
-        vm.warp(lottery.roundDuration() + 1 days);
+        uint8[6][] memory blessingTicketsNumbers = new uint8[6][](2);
+        uint8[6][] memory aliceTicketsNumbers = new uint8[6][](2);
 
-        vm.startPrank(DEPLOYER);
+        aliceTicketsNumbers[0] = ticket0;
+        aliceTicketsNumbers[1] = ticket1;
 
-        lottery.requestWinner();
-        uint256 requestId = lottery.getRoundRequestId(roundId);
-        VRFCoordinatorV2_5Mock(config.vrfCoordinator).fulfillRandomWords(requestId, address(lottery));
+        blessingTicketsNumbers[0] = ticket2;
+        blessingTicketsNumbers[1] = ticket3;
 
-        vm.stopPrank();
+        _buyTickets(BLESSING, blessingTicketsNumbers, currentRound);
+        _buyTickets(ALICE, aliceTicketsNumbers, currentRound);
 
-        vm.prank(BOB);
-        lottery.registerWinningTicket(roundId, BOB_TICKET_ID);
-        vm.prank(ADAM);
-        lottery.registerWinningTicket(roundId, ADAM_TICKET_ID);
+        uint256 blessingWinningTicketId = 1;
+        uint256 aliceWinningTicketId = 3;
 
-        vm.warp(block.timestamp + lottery.registerWinningTicketTimeframe() + 2 seconds);
+        _drawRound(currentRound);
 
-        vm.prank(DEPLOYER);
-        lottery.makeRoundPrizeClaimable(roundId);
+        vm.prank(BLESSING);
+        lottery.registerWinningTicket(currentRound, blessingWinningTicketId);
 
-        uint256 bobBalance = BOB.balance;
+        vm.prank(ALICE);
+        lottery.registerWinningTicket(currentRound, aliceWinningTicketId);
+
+        _makeRoundClaimable();
+
+        uint256 blessingBalance = BLESSING.balance;
 
         uint256 expectedRoundPrize = lottery.ticketPrice() * 4;
         // fee% * 0.002 * 4 participants
@@ -268,66 +379,48 @@ contract LotteryTest is Test {
         uint256 expectedFee = 8e13;
         uint256 prizePerWinner = (expectedRoundPrize - expectedFee) / 2;
 
-        // claim prize
-        vm.prank(BOB);
         vm.expectEmit(true, true, true, true, address(lottery));
-        emit Lottery.PrizeClaimed(roundId, BOB, BOB_TICKET_ID, prizePerWinner);
-        lottery.claimPrize(roundId, BOB_TICKET_ID);
+        emit Lottery.PrizeClaimed(0, BLESSING, blessingWinningTicketId, prizePerWinner);
+        vm.prank(BLESSING);
+        lottery.claimPrize(0, blessingWinningTicketId);
 
-        uint256 bobNewBalance = BOB.balance;
-
-        assertEq(bobNewBalance, bobBalance + prizePerWinner);
+        assertEq(BLESSING.balance, blessingBalance + prizePerWinner);
     }
 
     function test_claimPrizeRevertIfClaimTwice() external {
-        uint256 roundId = 0;
-        _buyRequestAndMakeRoundClaimable(BOB);
-        uint256 winningTicketId = 2;
+        uint256 currentRound = 0;
 
-        uint256 bobBalance = BOB.balance;
+        uint256 blessingWinningTicketId = 1;
 
-        uint256 expectedRoundPrize = lottery.ticketPrice() * 3;
-        uint256 expectedFee = 6e13;
-        uint256 prizePerWinner = (expectedRoundPrize - expectedFee) / 1;
+        _buyTicketsAndMakeClaimable(BLESSING);
 
-        // claim prize
-        vm.prank(BOB);
+        uint256 expectedRoundPrize = lottery.ticketPrice() * 4;
+        // fee% * 0.002 * 4 participants
+        // 1% * 0.008 ether
+        // fee * 0.008 ether => 1% * 0.004 ether = 4e13
+        uint256 expectedFee = 8e13;
+        uint256 prizePerWinner = (expectedRoundPrize - expectedFee) / 2;
+
         vm.expectEmit(true, true, true, true, address(lottery));
-        emit Lottery.PrizeClaimed(roundId, BOB, winningTicketId, prizePerWinner);
-        lottery.claimPrize(roundId, winningTicketId);
+        emit Lottery.PrizeClaimed(currentRound, BLESSING, blessingWinningTicketId, prizePerWinner);
+        vm.prank(BLESSING);
+        lottery.claimPrize(currentRound, blessingWinningTicketId);
 
-        uint256 bobNewBalance = BOB.balance;
-        assertEq(bobNewBalance, bobBalance + prizePerWinner);
-
-        vm.prank(BOB);
+        vm.prank(BLESSING);
         vm.expectRevert(Lottery.Lottery__TicketHasBeenClaimed.selector);
-        lottery.claimPrize(roundId, winningTicketId);
+        lottery.claimPrize(currentRound, blessingWinningTicketId);
     }
 
     function test_claimPrizeRevertIfNotOwner() external {
-        uint256 roundId = 0;
-        _buyRequestAndMakeRoundClaimable(BOB);
-        uint256 winningTicketId = 2;
-        
-        vm.prank(BLESSING);
+        uint256 currentRound = 0;
+
+        uint256 blessingWinningTicketId = 1;
+
+        _buyTicketsAndMakeClaimable(BLESSING);
+
+        vm.prank(ALICE);
         vm.expectRevert(Lottery.Lottery__TicketNotOwner.selector);
-        lottery.claimPrize(roundId, winningTicketId);
-    }
-
-    function test_claimPrizeRevertIfNotRegistered() external {
-        uint256 roundId = 0;
-        uint256 winningTicketId = 2;
-
-        _buyAndRequestRandomNumber(roundId, BLESSING);
-
-        vm.warp(block.timestamp + lottery.registerWinningTicketTimeframe() + 2 seconds);
-
-        vm.prank(DEPLOYER);
-        lottery.makeRoundPrizeClaimable(roundId);
-
-        vm.prank(BLESSING);
-        vm.expectRevert(Lottery.Lottery__TicketNotRegistered.selector);
-        lottery.claimPrize(roundId, winningTicketId);
+        lottery.claimPrize(currentRound, blessingWinningTicketId);
     }
 
     function _buyTicket(address owner, uint8[6] memory ticketNumbers, uint256 round) internal {
@@ -353,45 +446,57 @@ contract LotteryTest is Test {
         lottery.buyTickets{value: initialTicketPrice * totalTickets}(ticketsNumbers);
     }
 
-    function _buyAndRequestRandomNumber(uint256 roundId, address owner) private {
-        uint8[6] memory ticket0 = [1, 2, 3, 4, 5, 6];
-        uint8[6] memory ticket1 = [7, 8, 9, 10, 11, 12];
-        uint8[6] memory ticket2 = MOCK_CORRECT_RANDOM_NUMBERS;
+    function _drawRound(uint256 round) private returns (bool upkeepNeeded, bytes memory performData) {
+        vm.warp(block.timestamp + lottery.roundDuration() + 1 days);
 
-        uint8[6][] memory ticketsNumbers = new uint8[6][](3);
-        ticketsNumbers[0] = ticket0;
-        ticketsNumbers[1] = ticket1;
-        ticketsNumbers[2] = ticket2;
+        (upkeepNeeded, performData) = lottery.checkUpkeep("");
 
-        _buyAndRequestRandomNumber(roundId, owner, ticketsNumbers);
-    }
-
-    function _buyAndRequestRandomNumber(uint256 roundId, address owner, uint8[6][] memory ticketsNumbers) private {
-        _buyTickets(owner, ticketsNumbers, roundId);
-
-        vm.warp(lottery.roundDuration() + 1 days);
-
-        vm.startPrank(DEPLOYER);
-
-        lottery.requestWinner();
-        uint256 requestId = lottery.getRoundRequestId(roundId);
-        VRFCoordinatorV2_5Mock(config.vrfCoordinator).fulfillRandomWords(requestId, address(lottery));
-
-        vm.stopPrank();
-    }
-
-    function _buyRequestAndMakeRoundClaimable(address owner) private {
-        uint256 roundId = 0;
-        _buyAndRequestRandomNumber(roundId, owner);
-
-        uint256 winningTicketId = 2;
-
-        vm.prank(owner);
-        lottery.registerWinningTicket(roundId, winningTicketId);
-
-        vm.warp(block.timestamp + lottery.registerWinningTicketTimeframe() + 2 seconds);
+        lottery.performUpkeep(performData);
 
         vm.prank(DEPLOYER);
-        lottery.makeRoundPrizeClaimable(roundId);
+        uint256 requestId = lottery.getRoundRequestId(round);
+        VRFCoordinatorV2_5Mock(config.vrfCoordinator).fulfillRandomWords(requestId, address(lottery));
+
+        return (upkeepNeeded, performData);
+    }
+
+    function _makeRoundClaimable() private returns (bool upkeepNeeded, bytes memory performData) {
+        vm.warp(block.timestamp + REGISTRATION_WINNING_TICKET_TIMEFRAME + 1 seconds);
+
+        (upkeepNeeded, performData) = lottery.checkUpkeep("");
+        lottery.performUpkeep(performData);
+
+        return (upkeepNeeded, performData);
+    }
+
+    function _buyTicketsAndMakeClaimable(address owner) private {
+        uint256 currentRound = 0;
+
+        uint8[6] memory ticket0 = [1, 2, 3, 4, 5, 6];
+        uint8[6] memory ticket1 = MOCK_CORRECT_RANDOM_NUMBERS_ORDER_2;
+        uint8[6] memory ticket2 = [2, 3, 45, 67, 88, 99];
+        uint8[6] memory ticket3 = MOCK_CORRECT_RANDOM_NUMBERS;
+
+        uint8[6][] memory ownerTicketsNumbers = new uint8[6][](4);
+
+        ownerTicketsNumbers[0] = ticket0;
+        ownerTicketsNumbers[1] = ticket1;
+        ownerTicketsNumbers[2] = ticket2;
+        ownerTicketsNumbers[3] = ticket3;
+
+        _buyTickets(owner, ownerTicketsNumbers, currentRound);
+
+        uint256 ownerWinningTicketId = 1;
+        uint256 ownerSecondWinningTicketId = 3;
+
+        _drawRound(currentRound);
+
+        vm.prank(owner);
+        lottery.registerWinningTicket(currentRound, ownerWinningTicketId);
+
+        vm.prank(owner);
+        lottery.registerWinningTicket(currentRound, ownerSecondWinningTicketId);
+
+        _makeRoundClaimable();
     }
 }
