@@ -4,9 +4,9 @@ pragma solidity ^0.8.26;
 import {console} from "forge-std/console.sol";
 import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
 import {VRFV2PlusClient} from "@chainlink/contracts/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
-// import {Owned} from "./Owned.sol";
+import {AutomationCompatibleInterface} from "@chainlink/contracts/v0.8/automation/AutomationCompatible.sol";
 
-contract Lottery is VRFConsumerBaseV2Plus {
+contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     /// @title RoundStatus Enum
     /// @notice This enum represents the various statuses a lottery round can have.
     enum RoundStatus {
@@ -73,6 +73,9 @@ contract Lottery is VRFConsumerBaseV2Plus {
     uint8 public constant MAX_NUMBER = 99;
     uint16 private constant VRF_RANDOM_REQUEST_CONFIRMATIONS = 3;
     uint256 private constant ZEROS_PRECISION = 1e18;
+    uint256 private constant PERFORM_UPKEEP_ROUND_DRAWING = 1;
+    uint256 private constant PERFORM_UPKEEP_ROUND_EXTEND = 2;
+    uint256 private constant PERFORM_UPKEEP_ROUND_CLAIMABLE = 3;
     uint256 public currentRound = 0;
     uint256 public lotteryFee = 1e16; // 1%;
     uint256 public ticketPrice = 0.002 ether;
@@ -128,27 +131,60 @@ contract Lottery is VRFConsumerBaseV2Plus {
         _updatePlayerRounds(msg.sender);
     }
 
-    // TODO: Use chainlink automation for this
-    function requestWinner() external onlyOwner {
+    function checkUpkeep(bytes memory /* checkData */ )
+        public
+        view
+        override
+        returns (bool upkeepNeeded, bytes memory /* performData */ )
+    {
         Round memory _currentRound = rounds[currentRound];
 
-        if (block.timestamp <= _currentRound.endTime) revert Lottery__RoundStillActive();
-        if (_currentRound.status != RoundStatus.Active) revert Lottery__RoundNotActive();
+        if (_currentRound.status == RoundStatus.Drawing) return (false, "");
 
-        if (_currentRound.totalTickets < minimumRoundTicket) {
-            _currentRound.endTime += extendRoundBy;
-            emit RoundExtended(currentRound);
-            return;
+        // now = 7:30
+        // end time = 8:30
+        // register winning ticket = 15:30
+        bool drawRound = _currentRound.status == RoundStatus.Active && block.timestamp > _currentRound.endTime;
+        if (drawRound) {
+            if (_currentRound.totalTickets < minimumRoundTicket) {
+                return (true, abi.encode(PERFORM_UPKEEP_ROUND_EXTEND));
+            }
+
+            return (true, abi.encode(PERFORM_UPKEEP_ROUND_DRAWING));
         }
 
-        rounds[currentRound].status = RoundStatus.Drawing;
-        _getLotteryNumbers();
+        bool makeRoundPrizeClaimable = _currentRound.status == RoundStatus.RegisterWinningTickets
+            && block.timestamp > _currentRound.registerWinningTicketTime;
+
+        if (makeRoundPrizeClaimable) {
+            return (true, abi.encode(PERFORM_UPKEEP_ROUND_CLAIMABLE));
+        }
+
+        return (false, "");
+    }
+
+    function performUpkeep(bytes calldata performData) external {
+        (bool performAction,) = checkUpkeep("");
+
+        if (!performAction) return;
+
+        uint256 action = abi.decode(performData, (uint256));
+
+        if (action == PERFORM_UPKEEP_ROUND_EXTEND) {
+            _extendRound();
+        } else if (action == PERFORM_UPKEEP_ROUND_DRAWING) {
+            _getLotteryNumbers();
+        } else if (action == PERFORM_UPKEEP_ROUND_CLAIMABLE) {
+            _makeRoundPrizeClaimable();
+        }
     }
 
     function registerWinningTicket(uint256 roundId, uint256 ticketId) external {
         Round memory _round = rounds[roundId];
 
-        if (_round.status != RoundStatus.RegisterWinningTickets) revert Lottery__IncorrectRoundStatus(_round.status, RoundStatus.RegisterWinningTickets, "");
+        if (_round.status != RoundStatus.RegisterWinningTickets) {
+            revert Lottery__IncorrectRoundStatus(_round.status, RoundStatus.RegisterWinningTickets, "");
+        }
 
         Ticket memory ticket = roundTickets[roundId][ticketId];
 
@@ -169,12 +205,8 @@ contract Lottery is VRFConsumerBaseV2Plus {
         rounds[roundId] = _round;
     }
 
-    // TODO: Use Chainlink automation
-    function makeRoundPrizeClaimable(uint256 round) external onlyOwner {
-        Round memory _round = rounds[round];
-
-        if (_round.status != RoundStatus.RegisterWinningTickets) revert Lottery__IncorrectRoundStatus(_round.status, RoundStatus.RegisterWinningTickets, "");
-        if (_round.registerWinningTicketTime > block.timestamp) revert Lottery__TooEarlyForWinningTicketTime();
+    function _makeRoundPrizeClaimable() private {
+        Round memory _round = rounds[currentRound];
 
         uint256 fee = (_round.prize * lotteryFee) / ZEROS_PRECISION;
         (bool success,) = payable(owner()).call{value: fee}("");
@@ -184,15 +216,21 @@ contract Lottery is VRFConsumerBaseV2Plus {
         _round.prize = _round.prize - fee;
         _round.status = RoundStatus.Claimable;
 
-        rounds[round] = _round;
+        rounds[currentRound] = _round;
 
-        emit RoundClaimable(round);
+        emit RoundClaimable(currentRound);
+
+        currentRound += 1;
+        rounds[currentRound] = _initRound(currentRound);
+        emit NewRoundStarted(currentRound);
     }
 
     function claimPrize(uint256 roundId, uint256 ticketId) external {
         Round memory _round = rounds[roundId];
 
-        if (_round.status != RoundStatus.Claimable) revert Lottery__IncorrectRoundStatus(_round.status, RoundStatus.Claimable, "");
+        if (_round.status != RoundStatus.Claimable) {
+            revert Lottery__IncorrectRoundStatus(_round.status, RoundStatus.Claimable, "");
+        }
 
         Ticket memory ticket = roundTickets[roundId][ticketId];
 
@@ -211,7 +249,11 @@ contract Lottery is VRFConsumerBaseV2Plus {
         emit PrizeClaimed(roundId, msg.sender, ticketId, prizeAmount);
     }
 
-    function fulfillRandomWords(uint256, /* requestId */ uint256[] calldata randomWords) internal override {
+    function fulfillRandomWords(
+        uint256,
+        /* requestId */
+        uint256[] calldata randomWords
+    ) internal override {
         uint8[6] memory winningNumbers;
         uint8 index = 0;
         for (index; index < TOTAL_TICKET_NUMBERS;) {
@@ -226,10 +268,6 @@ contract Lottery is VRFConsumerBaseV2Plus {
         _currentRound.status = RoundStatus.RegisterWinningTickets;
         _currentRound.registerWinningTicketTime = block.timestamp + registerWinningTicketTimeframe;
         rounds[currentRound] = _currentRound;
-
-        currentRound += 1;
-        rounds[currentRound] = _initRound(currentRound);
-        emit NewRoundStarted(0);
     }
 
     function getPlayerTickets(address player, uint256 roundId)
@@ -290,7 +328,9 @@ contract Lottery is VRFConsumerBaseV2Plus {
     }
 
     function _validateRoundData(uint256 totalTickets, uint256 amountPaid) private view {
-        if (totalTickets * ticketPrice != amountPaid) revert Lottery__InvalidTicketPaymentAmount();
+        if (totalTickets * ticketPrice != amountPaid) {
+            revert Lottery__InvalidTicketPaymentAmount();
+        }
 
         Round memory _currentRound = rounds[currentRound];
         // start -> 1:30 ;;; now -> 2:30 ;;; end -> 4:30
@@ -360,6 +400,8 @@ contract Lottery is VRFConsumerBaseV2Plus {
     }
 
     function _getLotteryNumbers() internal returns (uint256 requestId) {
+        rounds[currentRound].status = RoundStatus.Drawing;
+
         requestId = s_vrfCoordinator.requestRandomWords(
             VRFV2PlusClient.RandomWordsRequest({
                 keyHash: i_keyHash,
@@ -397,11 +439,18 @@ contract Lottery is VRFConsumerBaseV2Plus {
                 }
             }
 
-            if (found == 0) revert Lottery__TicketNumberNotTheSameAsRoundNumber();
+            if (found == 0) {
+                revert Lottery__TicketNumberNotTheSameAsRoundNumber();
+            }
 
             unchecked {
                 i++;
             }
         }
+    }
+
+    function _extendRound() private {
+        rounds[currentRound].endTime += extendRoundBy;
+        emit RoundExtended(currentRound);
     }
 }
