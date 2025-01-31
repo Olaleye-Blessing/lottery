@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import './globals.css';
 import Providers from '@/components/providers';
 import Navbar from '@/components/navbar';
+import Footer from '@/components/footer';
 
 const geistSans = localFont({
 	src: './fonts/GeistVF.woff',
@@ -35,6 +36,7 @@ export default function RootLayout({
 					<Toaster />
 					<Navbar />
 					{children}
+					<Footer />
 				</Providers>
 			</body>
 		</html>

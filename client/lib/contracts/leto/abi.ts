@@ -2,7 +2,7 @@ import { parseAbi } from 'viem';
 
 export const letoAbi = parseAbi([
 	// ============ structs ============
-	'struct Round { uint256 id; uint256 startTime; uint256 endTime; uint256 prize; uint256 totalTickets; uint8[6] winningNumbers; uint8 status }',
+	'struct Round { uint256 id; uint256 startTime; uint256 endTime; uint256 registerWinningTicketTime; uint256 prize; uint256 totalTickets; uint256 totalWinningTickets; uint8[6] winningNumbers; uint8 status; }',
 
 	// ============ functions ============
 	'function ticketPrice() external view returns (uint256)',
@@ -10,6 +10,7 @@ export const letoAbi = parseAbi([
 	'function getRoundData() external view returns (Round memory)',
 	'function buyTicket(uint8[6] calldata numbers) external payable',
 	'function buyTickets(uint8[6][] calldata ticketsNumbers) external payable',
+	'function extendRound() external',
 
 	// ============ events ============
 	'event TicketPurchased(address indexed player, uint256 indexed roundId, uint8[6] numbers)',
