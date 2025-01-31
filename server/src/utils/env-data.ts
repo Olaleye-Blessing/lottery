@@ -13,6 +13,7 @@ const envSchema = z.object({
   BASE_SEPOLIA_ALCHEMY_RPC_URL: z.string().url(),
   ANVIL_RPC: z.string().url(),
   LETO_ADDRESS: z.string(),
+  LETO_DEPLOYMENT_BLOCK: z.coerce.number(),
   REDIS_URL: z.string(),
 });
 

@@ -3,6 +3,7 @@ dotenv.config();
 
 import app from './app';
 import { connectDBs } from './dbs/init';
+import { LetoService } from './leto/service';
 
 const port = process.env.PORT || 7000;
 
@@ -12,6 +13,8 @@ const main = async () => {
   });
 
   await connectDBs();
+
+  LetoService.listenToRoundsCompletedEvent();
 
   process.on('unhandledRejection', (err: Error) => {
     console.log('____ 🔥 Unhandled rejection ____');
