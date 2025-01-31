@@ -108,6 +108,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     uint256 private constant PERFORM_UPKEEP_ROUND_DRAWING = 1;
     uint256 private constant PERFORM_UPKEEP_ROUND_EXTEND = 2;
     uint256 private constant PERFORM_UPKEEP_ROUND_CLAIMABLE = 3;
+    uint256[] private s_roundHistory;
     uint256 public currentRound = 0;
     uint256 public lotteryFee = 1e16; // 1%
     uint256 public ticketPrice = 0.002 ether;
@@ -149,6 +150,17 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     modifier validRound(uint256 round) {
         if (round > currentRound) revert Lottery__InvalidRound();
         _;
+    }
+
+    /// @notice Validates pagination parameters
+    /// @param page The page number
+    /// @param perPage The number of items per page
+    modifier validPagination(uint256 page, uint256 perPage) {
+        if (page >= 0 && perPage > 0) {
+            _;
+        } else {
+            revert Lottery__InvalidPagination();
+        }
     }
 
     /// @notice Purchase a single lottery ticket
@@ -318,6 +330,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         _round.status = RoundStatus.Claimable;
 
         rounds[currentRound] = _round;
+        s_roundHistory.push(currentRound);
 
         emit RoundClaimable(currentRound);
 
@@ -368,6 +381,37 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         }
 
         return (ticketIds, tickets);
+    }
+
+    /// @notice Retrieves a paginated list of all previous rounds
+    /// @param page The page number to retrieve
+    /// @param perPage The number of rounds per page
+    /// @return An array of Round structs and the total number of rounds
+    function getRoundHistoryData(uint256 page, uint256 perPage)
+        external
+        view
+        validPagination(page, perPage)
+        returns (Round[] memory, uint256 totalRounds)
+    {
+        uint256 start = page * perPage;
+        uint256 end = start + perPage;
+        totalRounds = s_roundHistory.length;
+
+        if (end > totalRounds) end = totalRounds;
+
+        uint256 totalRoundsToReturn = end - start;
+
+        Round[] memory _rounds = new Round[](totalRoundsToReturn);
+
+        for (uint256 index = 0; index < totalRoundsToReturn;) {
+            _rounds[index] = rounds[s_roundHistory[start + index]];
+
+            unchecked {
+                index++;
+            }
+        }
+
+        return (_rounds, totalRounds);
     }
 
     /// @notice Get data for a specific round
