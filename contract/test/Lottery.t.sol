@@ -11,8 +11,8 @@ contract LotteryTest is Test {
     Lottery public lottery;
     HelperConfig.Config public config;
     uint256 initialTicketPrice;
-    uint8[6] private MOCK_CORRECT_RANDOM_NUMBERS = [32, 78, 61, 97, 0, 46];
-    uint8[6] private MOCK_CORRECT_RANDOM_NUMBERS_ORDER_2 = [78, 32, 61, 0, 46, 97];
+    uint8[6] private MOCK_CORRECT_RANDOM_NUMBERS = [1, 25, 36, 47, 58, 99];
+    uint8[6] private MOCK_CORRECT_RANDOM_NUMBERS_ORDER_2 = [99, 36, 58, 25, 1, 47];
     uint256 private constant EXTEND_ROUND_BY = 3 days;
     uint256 private constant PERFORM_UPKEEP_ROUND_DRAWING = 1;
     uint256 private constant PERFORM_UPKEEP_ROUND_EXTEND = 2;
@@ -109,7 +109,7 @@ contract LotteryTest is Test {
         vm.startPrank(BLESSING);
         vm.expectRevert(
             abi.encodeWithSelector(
-                Lottery.Lottery__InvalidTicketNumbers.selector, "Provide number between 0 and 99, inclusive"
+                Lottery.Lottery__InvalidTicketNumbers.selector, "Provide number between 1 and 99, inclusive"
             )
         );
         lottery.buyTicket{value: initialTicketPrice}(ticketNumbers);
@@ -205,7 +205,7 @@ contract LotteryTest is Test {
 
         vm.expectEmit(true, true, true, true, address(lottery));
         emit Lottery.RoundDrawn(currentRound);
-        VRFCoordinatorV2_5Mock(config.vrfCoordinator).fulfillRandomWords(requestId, address(lottery));
+        VRFCoordinatorV2_5Mock(config.vrfCoordinator).fulfillRandomWordsWithOverride(requestId, address(lottery), _mockCorrectRandomNumbers());
 
         round = lottery.getRoundData(currentRound);
 
@@ -484,7 +484,7 @@ contract LotteryTest is Test {
 
         vm.prank(DEPLOYER);
         uint256 requestId = lottery.getRoundRequestId(round);
-        VRFCoordinatorV2_5Mock(config.vrfCoordinator).fulfillRandomWords(requestId, address(lottery));
+        VRFCoordinatorV2_5Mock(config.vrfCoordinator).fulfillRandomWordsWithOverride(requestId, address(lottery), _mockCorrectRandomNumbers());
 
         return (upkeepNeeded, performData);
     }
@@ -550,5 +550,21 @@ contract LotteryTest is Test {
         _drawRound(currentRound);
 
         _makeRoundClaimable();
+    }
+
+    function _mockCorrectRandomNumbers() private view returns(uint256[] memory) {
+        uint256[] memory randomWords = new uint256[](6);
+
+        // uint8[6] private MOCK_CORRECT_RANDOM_NUMBERS = [1, 25, 36, 47, 58, 99];
+        // MOCK_CORRECT_RANDOM_NUMBERS[0] = 1
+        // 98 + 1 = 99
+        // 99 will be provided by chainlink
+        // lottery will do this: uint8(randomWords[index] % 99) + 1; (check fulfillRandomWords function)
+        // this in turn gives the MOCK_CORRECT_RANDOM_NUMBERS
+        for (uint256 index = 0; index < 6; index++) {
+            randomWords[index] = 98 + uint256(MOCK_CORRECT_RANDOM_NUMBERS[index]);
+        }
+
+        return randomWords;
     }
 }

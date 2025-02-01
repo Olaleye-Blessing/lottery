@@ -310,7 +310,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
 
         uint8[6] memory winningNumbers;
         for (uint8 index = 0; index < TOTAL_TICKET_NUMBERS;) {
-            winningNumbers[index] = uint8(randomWords[index] % 99);
+            winningNumbers[index] = uint8(randomWords[index] % 99) + 1;
             unchecked {
                 index++;
             }
@@ -522,8 +522,8 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
 
         uint8 startIndex = 0;
         for (startIndex; startIndex < TOTAL_TICKET_NUMBERS;) {
-            if (numbers[startIndex] > MAX_NUMBER) {
-                revert Lottery__InvalidTicketNumbers("Provide number between 0 and 99, inclusive");
+            if (numbers[startIndex] < 1 || numbers[startIndex] > MAX_NUMBER) {
+                revert Lottery__InvalidTicketNumbers("Provide number between 1 and 99, inclusive");
             }
 
             for (uint8 j = startIndex + 1; j < TOTAL_TICKET_NUMBERS;) {

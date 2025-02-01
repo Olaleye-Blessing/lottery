@@ -5,7 +5,7 @@ import Digit from './digit';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 
-const _numbers = Array.from({ length: 59 }, (_, index) => index + 1);
+const _numbers = Array.from({ length: 99 }, (_, index) => index + 1);
 
 const TOTAL_TICKET_NUMBERS = 6;
 const MAX_NUMBER = 59;
