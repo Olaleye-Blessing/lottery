@@ -306,7 +306,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     /// @param requestId ID of the VRF request
     /// @param randomWords Array of random numbers provided by VRF
     function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) internal override {
-        emit RoundDrawn(currentRound);
+        if (s_roundRequests[currentRound] != requestId) return; // You can't revert per chainlink doc
 
         uint8[6] memory winningNumbers;
         for (uint8 index = 0; index < TOTAL_TICKET_NUMBERS;) {
@@ -321,6 +321,8 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         _currentRound.status = RoundStatus.RegisterWinningTickets;
         _currentRound.registerWinningTicketTime = block.timestamp + s_registerWinningTicketTimeframe;
         rounds[currentRound] = _currentRound;
+
+        emit RoundDrawn(currentRound);
     }
 
     /// @notice Set the address that `performUpkeep` is called from
