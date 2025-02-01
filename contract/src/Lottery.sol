@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.26;
 
-import {console} from "forge-std/console.sol";
 import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
 import {VRFV2PlusClient} from "@chainlink/contracts/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 import {AutomationCompatibleInterface} from "@chainlink/contracts/v0.8/automation/AutomationCompatible.sol";
@@ -51,6 +50,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     error Lottery__FundTransferFailed();
     /// @notice Thrown when ticket numbers don't match winning numbers
     error Lottery__TicketNumberNotTheSameAsRoundNumber();
+    error Lottery__InvalidPagination();
 
     /// @notice Emitted when a ticket is purchased
     /// @param player Address of the ticket buyer
@@ -321,12 +321,15 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     function _makeRoundPrizeClaimable() private {
         Round memory _round = rounds[currentRound];
 
-        uint256 fee = (_round.prize * lotteryFee) / ZEROS_PRECISION;
-        (bool success,) = payable(owner()).call{value: fee}("");
+        if (_round.totalWinningTickets > 0) {
+            uint256 fee = (_round.prize * lotteryFee) / ZEROS_PRECISION;
+            (bool success,) = payable(owner()).call{value: fee}("");
 
-        if (!success) revert Lottery__FundTransferFailed();
+            if (!success) revert Lottery__FundTransferFailed();
 
-        _round.prize = _round.prize - fee;
+            _round.prize = _round.prize - fee;
+        }
+
         _round.status = RoundStatus.Claimable;
 
         rounds[currentRound] = _round;
@@ -337,6 +340,11 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         currentRound += 1;
         rounds[currentRound] = _initRound(currentRound);
         emit NewRoundStarted(currentRound);
+
+        // Move prize pool of previous round to current round
+        if (_round.totalWinningTickets == 0) {
+            rounds[currentRound].prize = rounds[currentRound - 1].prize;
+        }
     }
 
     /// @notice Get tickets owned by a specific player in a round

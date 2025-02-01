@@ -423,6 +423,25 @@ contract LotteryTest is Test {
         lottery.claimPrize(currentRound, blessingWinningTicketId);
     }
 
+    function test_movePrizeToNextRoundIfThereIsNoRegisteredWinner() external {
+        uint256 currentRoundID = 0;
+
+        _buytTicketsAndMakeClaimableWithoutRegistration(BLESSING); // this function buys 4 tickets
+        uint256 ticketsBought = 4;
+        uint256 roundPoolPrize = ticketsBought * initialTicketPrice;
+
+        uint256 newRoundID = 1;
+
+        Lottery.Round memory prevRound = lottery.getRoundData(currentRoundID);
+        Lottery.Round memory newRound = lottery.getRoundData(newRoundID);
+
+        assertEq(uint8(prevRound.status), uint8(Lottery.RoundStatus.Claimable));
+        assertEq(newRound.id, newRoundID);
+        assertEq(newRound.prize, roundPoolPrize);
+        assertEq(newRound.totalTickets, 0);
+        assertEq(uint8(newRound.status), uint8(Lottery.RoundStatus.Active));
+    }
+
     function _buyTicket(address owner, uint8[6] memory ticketNumbers, uint256 round) internal {
         vm.prank(owner);
         vm.expectEmit(true, true, true, true, address(lottery));
@@ -496,6 +515,28 @@ contract LotteryTest is Test {
 
         vm.prank(owner);
         lottery.registerWinningTicket(currentRound, ownerSecondWinningTicketId);
+
+        _makeRoundClaimable();
+    }
+
+    function _buytTicketsAndMakeClaimableWithoutRegistration(address owner) private {
+        uint256 currentRound = 0;
+
+        uint8[6] memory ticket0 = [1, 2, 3, 4, 5, 6];
+        uint8[6] memory ticket1 = MOCK_CORRECT_RANDOM_NUMBERS_ORDER_2;
+        uint8[6] memory ticket2 = [2, 3, 45, 67, 88, 99];
+        uint8[6] memory ticket3 = MOCK_CORRECT_RANDOM_NUMBERS;
+
+        uint8[6][] memory ownerTicketsNumbers = new uint8[6][](4);
+
+        ownerTicketsNumbers[0] = ticket0;
+        ownerTicketsNumbers[1] = ticket1;
+        ownerTicketsNumbers[2] = ticket2;
+        ownerTicketsNumbers[3] = ticket3;
+
+        _buyTickets(owner, ownerTicketsNumbers, currentRound);
+
+        _drawRound(currentRound);
 
         _makeRoundClaimable();
     }
