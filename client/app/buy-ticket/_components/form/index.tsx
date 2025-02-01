@@ -5,18 +5,17 @@ import { useConfig, useWriteContract } from 'wagmi';
 import { waitForTransactionReceipt } from '@wagmi/core';
 import { parseEther } from 'viem';
 import toast from 'react-hot-toast';
-import { useLetoRequest } from '@/hooks/use-leto-request';
 import { Button } from '@/components/ui/button';
 import { letoConfig } from '@/configs/leto-contract-config';
 import Numbers from './numbers';
 import Tickets, { ITickets } from './tickets';
 import { getCreateErrMsg } from '../../_utils/err-msg';
+import { useGetTicketPrice } from '@/hooks/use-get-ticket-price';
+import EtherLabel from '@/components/ether-label';
+import { ShoppingCart } from 'lucide-react';
 
 export default function Form() {
-	const { data: letoTicketPrice } = useLetoRequest<{ price: number }>({
-		url: '/leto/tickets/price',
-		options: { queryKey: ['leto', 'ticket-price'] },
-	});
+	const { ticketPrice: letoTicketPrice } = useGetTicketPrice();
 	const config = useConfig();
 	const { writeContractAsync } = useWriteContract();
 	const [tickets, setTickets] = useState<ITickets>({});
@@ -47,7 +46,7 @@ export default function Form() {
 
 		if (_totalTickets === 0) return;
 
-		const ticketPrice = letoTicketPrice.price * _totalTickets;
+		const ticketPrice = letoTicketPrice * _totalTickets;
 
 		setCreatingTicket(true);
 
@@ -77,42 +76,78 @@ export default function Form() {
 		}
 	};
 
+	const extendRound = async () => {
+		const toastId = toast.loading('Extending Round');
+
+		try {
+			const txHash = await writeContractAsync({
+				...letoConfig,
+				functionName: 'extendRound',
+			});
+
+			toast.loading('Confriming Round Hash', { id: toastId });
+
+			await waitForTransactionReceipt(config, {
+				hash: txHash,
+				confirmations: 1,
+			});
+
+			toast.success('Round extended successfully', { id: toastId });
+		} catch (error) {
+			toast.error(getCreateErrMsg(error), { id: toastId });
+		}
+	};
+
 	return (
-		<div className='md:flex md:items-start md:justify-between'>
-			<form className='mt-4 max-w-[30rem] mx-auto'>
+		<>
+			<form className='sm:flex sm:items-start sm:justify-between'>
 				<Numbers
 					addTicket={addTicket}
 					creatingTicket={creatingTicket}
 				/>
-			</form>
-			<div className='mt-4 w-full'>
-				<section>
-					<header>
-						<h2>
-							<span>Total Tickets: </span>
-							<span className='text-primary'>{totalTickets}</span>
-						</h2>
-					</header>
+
+				<section className='bg-gray-800 rounded-lg p-6 sm:w-[48%]'>
+					<div className='flex items-center gap-2 mb-4'>
+						<ShoppingCart />
+						<h2 className='text-xl font-semibold'>Your Tickets</h2>
+					</div>
 					{totalTickets > 0 && (
 						<Tickets
 							tickets={tickets}
 							onDeleteTicket={deleteTicket}
 						/>
 					)}
-				</section>
-				{totalTickets > 0 && (
-					<div className='flex items-center justify-center mt-8'>
+					<div className='flex justify-between items-center border-t border-gray-700 pt-2 flex-wrap'>
+						<div className='mt-2'>
+							<p className='text-gray-400'>Total</p>
+							<p className='text-2xl font-bold'>
+								<EtherLabel
+									label={
+										(letoTicketPrice || 0) * totalTickets
+									}
+								/>
+							</p>
+						</div>
 						<Button
-							type='button'
-							onClick={() => buyTickets()}
-							disabled={!letoTicketPrice || creatingTicket}
-							isLoading={creatingTicket}
+							onClick={(e) => {
+								e.preventDefault();
+								buyTickets();
+							}}
+							disabled={totalTickets === 0}
+							className={`mt-2 rounded-lg font-semibold ${
+								totalTickets > 0
+									? ''
+									: 'bg-gray-700 text-gray-500 cursor-not-allowed'
+							} transition-colors`}
 						>
-							Buy Tickets
+							Purchase Tickets
 						</Button>
 					</div>
-				)}
-			</div>
-		</div>
+				</section>
+			</form>
+			<Button type='button' onClick={extendRound}>
+				Extend
+			</Button>
+		</>
 	);
 }

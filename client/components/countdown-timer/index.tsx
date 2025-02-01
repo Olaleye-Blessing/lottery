@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import TimeUnit from './time-unit';
 
@@ -38,12 +38,6 @@ export default function CountdownTimer({
 			const seconds = Math.floor((difference % (1000 * 60)) / 1000);
 
 			setTimeLeft((prevTime) => {
-				// Trigger animation if seconds changed
-				// if (prevTime.seconds !== seconds) {
-				// 	setAnimate(true);
-				// 	setTimeout(() => setAnimate(false), 100);
-				// }
-
 				const newAnimations = {
 					days: prevTime.days !== days,
 					hours: prevTime.hours !== hours,
