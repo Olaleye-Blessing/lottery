@@ -51,6 +51,8 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     /// @notice Thrown when ticket numbers don't match winning numbers
     error Lottery__TicketNumberNotTheSameAsRoundNumber();
     error Lottery__InvalidPagination();
+    /// @dev Thrown when another contract/account calls chainlink upkeep
+    error Lottery__UnknownForwarder();
 
     /// @notice Emitted when a ticket is purchased
     /// @param player Address of the ticket buyer
@@ -123,6 +125,9 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     uint16 private constant VRF_RANDOM_REQUEST_CONFIRMATIONS = 3;
     uint256 private immutable i_vrfSubId;
     bytes32 private immutable i_keyHash;
+
+    // === Chainlink automation ===
+    address private s_automationForwarder;
 
     mapping(uint256 roundId => Round) public rounds;
     mapping(uint256 roundId => mapping(uint256 ticketId => Ticket ticket)) private s_roundTickets;
@@ -226,6 +231,8 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     /// @dev Called by Chainlink Automation when checkUpkeep returns true
     /// @param performData Encoded data indicating which action to perform
     function performUpkeep(bytes calldata performData) external override {
+        if (msg.sender != s_automationForwarder) revert Lottery__UnknownForwarder();
+
         (bool performAction,) = checkUpkeep("");
         if (!performAction) return;
 
@@ -314,6 +321,13 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         _currentRound.status = RoundStatus.RegisterWinningTickets;
         _currentRound.registerWinningTicketTime = block.timestamp + s_registerWinningTicketTimeframe;
         rounds[currentRound] = _currentRound;
+    }
+
+    /// @notice Set the address that `performUpkeep` is called from
+    /// @dev Only callable by the owner
+    /// @param forwarder the address to set
+    function setForwarderAddress(address forwarder) external onlyOwner {
+        s_automationForwarder = forwarder;
     }
 
     /// @notice Make round prizes claimable and start new round

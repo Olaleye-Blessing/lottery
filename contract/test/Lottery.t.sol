@@ -18,6 +18,7 @@ contract LotteryTest is Test {
     uint256 private constant PERFORM_UPKEEP_ROUND_EXTEND = 2;
     uint256 private constant PERFORM_UPKEEP_ROUND_CLAIMABLE = 3;
     uint256 private constant REGISTRATION_WINNING_TICKET_TIMEFRAME = 3 hours;
+    address chainlinkAutomationForwarder = makeAddr("CHAINLINK_AUTOMATION_FORWARDER");
 
     address BLESSING = makeAddr("blessing");
     address BOB = makeAddr("bob");
@@ -31,11 +32,17 @@ contract LotteryTest is Test {
         vm.deal(ALICE, 100 ether);
         vm.deal(DEPLOYER, 100 ether);
         vm.deal(ADAM, 100 ether);
+
         vm.prank(DEPLOYER);
         (lottery, config) = new DeployLottery().run();
         initialTicketPrice = lottery.ticketPrice();
-        vm.prank(DEPLOYER);
+
+        vm.startPrank(DEPLOYER);
         VRFCoordinatorV2_5Mock(config.vrfCoordinator).addConsumer(config.vrfSubId, address(lottery));
+
+        lottery.setForwarderAddress(chainlinkAutomationForwarder);
+        vm.stopPrank();
+
     }
 
     function test_roundStartAtZero() external view {
@@ -158,6 +165,7 @@ contract LotteryTest is Test {
 
         assertEq(upkeepNeeded, true);
 
+        vm.prank(chainlinkAutomationForwarder);
         vm.expectEmit(true, true, true, true, address(lottery));
         emit Lottery.RoundExtended(currentRound);
         lottery.performUpkeep(performData);
@@ -185,6 +193,7 @@ contract LotteryTest is Test {
 
         (, bytes memory performData) = lottery.checkUpkeep("");
 
+        vm.prank(chainlinkAutomationForwarder);
         lottery.performUpkeep(performData);
 
         Lottery.Round memory round = lottery.getRoundData(currentRound);
@@ -470,6 +479,7 @@ contract LotteryTest is Test {
 
         (upkeepNeeded, performData) = lottery.checkUpkeep("");
 
+        vm.prank(chainlinkAutomationForwarder);
         lottery.performUpkeep(performData);
 
         vm.prank(DEPLOYER);
@@ -483,6 +493,7 @@ contract LotteryTest is Test {
         vm.warp(block.timestamp + REGISTRATION_WINNING_TICKET_TIMEFRAME + 1 seconds);
 
         (upkeepNeeded, performData) = lottery.checkUpkeep("");
+        vm.prank(chainlinkAutomationForwarder);
         lottery.performUpkeep(performData);
 
         return (upkeepNeeded, performData);
