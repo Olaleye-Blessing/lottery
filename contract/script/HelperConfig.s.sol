@@ -37,7 +37,7 @@ contract HelperConfig is Script {
             minimumRoundTicket: 30,
             vrfCoordinator: 0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE,
             // TODO: Update this after creating the subscription
-            vrfSubId: 10228753585588637580144506973361936923847222353695115603306968944782157658581,
+            vrfSubId: 84612310995526963820256148017357353711657270952980576002847868875380752114553,
             keyHash: 0x9e1344a1247c8a1785d0a4681a27152bffdb43666ae5bf7d14d24a5efd44bf71
         });
     }
