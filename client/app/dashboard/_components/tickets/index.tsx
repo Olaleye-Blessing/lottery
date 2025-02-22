@@ -60,10 +60,10 @@ export default function Tickets({ player }: { player: Address }) {
 					setRoundId(roundId);
 				}}
 			>
-				<div className='flex items-center justify-start'>
-					<label className='mr-2'>Round ID</label>
+				<div className='flex items-center justify-start flex-wrap'>
+					<label className='mr-2 flex-shrink-0 mb-1'>Round ID</label>
 					<Input
-						className='w-full max-w-[17rem] mr-2'
+						className='w-full max-w-[17rem] mr-2 mb-1'
 						type='number'
 						min={0}
 						max={currentRound?.toString()}
@@ -79,7 +79,7 @@ export default function Tickets({ player }: { player: Address }) {
 					/>
 					<Button type='submit'>Get Tickets</Button>
 				</div>
-				<output className='mt-8 block'>
+				<output className='mt-7 block'>
 					{data && round ? (
 						<>
 							{tickets.length === 0 ? (

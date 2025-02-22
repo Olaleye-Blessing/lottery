@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 export default function Header() {
 	return (
-		<header className='container mx-auto px-4 py-16 md:py-24'>
+		<header className='container break-words mx-auto px-4 py-16 md:py-24'>
 			<div className='text-center max-w-4xl mx-auto'>
 				<h1 className='text-4xl md:text-6xl font-bold mb-6'>
 					The Future of

@@ -8,7 +8,7 @@ interface TicketsProps {
 
 export default function Tickets({ tickets, onDeleteTicket }: TicketsProps) {
 	return (
-		<ul>
+		<ul className='max-h-[24.2rem] overflow-y-auto'>
 			{Object.entries(tickets).map(([key, tickeNumbers]) => {
 				return (
 					<li

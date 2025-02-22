@@ -67,7 +67,7 @@ export default function Numbers({ addTicket, creatingTicket }: NumbersProps) {
 					Quick Pick
 				</Button>
 			</header>
-			<div className='flex items-start justify-center flex-wrap'>
+			<div className='flex items-start justify-center flex-wrap max-h-[25rem] overflow-y-auto'>
 				{_numbers.map((num) => (
 					<Digit
 						key={num}

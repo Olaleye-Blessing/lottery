@@ -18,12 +18,10 @@ export default function Header() {
 			{round ? (
 				<div className='bg-gray-800/50 rounded-lg mt-8 p-6 backdrop-blur-sm'>
 					<div className='mb-6'>
-						<div className='flex justify-between items-start mb-4'>
-							<div>
-								<h2 className='text-gray-200 text-xl font-semibold'>
-									Current Round #{round.id}
-								</h2>
-							</div>
+						<div className='flex justify-between items-center mb-4 flex-wrap'>
+							<h2 className='text-gray-200 text-xl font-semibold'>
+								Current Round #{round.id}
+							</h2>
 							<div className='text-gray-400'>
 								<p className='text-gray-200 font-semibold'>
 									<EtherLabel
