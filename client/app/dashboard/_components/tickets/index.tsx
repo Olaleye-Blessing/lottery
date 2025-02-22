@@ -15,15 +15,21 @@ export default function Tickets({ player }: { player: Address }) {
 		...letoConfig,
 		functionName: 'currentRound',
 	});
-	const [roundId, setRoundId] = useState<number>(0);
+	const [roundId, setRoundId] = useState<number | undefined>(undefined);
 
-	const { round } = useGetRound(roundId);
+	const { round } = useGetRound({
+		roundId,
+		enabled: currentRound !== undefined,
+	});
 
-	const { data, error: ticketsError } = useReadContract({
+	const {
+		data,
+		isFetching: ticketsFetching,
+		error: ticketsError,
+	} = useReadContract({
 		...letoConfig,
 		functionName: 'getPlayerTickets',
-		args: [BigInt(roundId)],
-		query: { enabled: roundId !== undefined },
+		args: roundId !== undefined ? [BigInt(roundId)] : undefined,
 		account: player,
 	});
 
@@ -34,15 +40,21 @@ export default function Tickets({ player }: { player: Address }) {
 			<header>
 				<h1>
 					<span>Tickets </span> (
-					<span className='text-primary'>#{roundId}</span>)
+					<span className='text-primary'>
+						#{roundId || currentRound?.toString()}
+					</span>
+					)
 				</h1>
 			</header>
 			<form
 				onSubmit={(e) => {
 					e.preventDefault();
 					// @ts-expect-error Correct
-					const roundId = +e.currentTarget.elements.round.value;
+					const round = e.currentTarget.elements.round.value;
 
+					if (round === '') return;
+
+					const roundId = +round;
 					if (Number.isNaN(roundId)) return;
 
 					setRoundId(roundId);
@@ -53,12 +65,14 @@ export default function Tickets({ player }: { player: Address }) {
 					<Input
 						className='w-full max-w-[17rem] mr-2'
 						type='number'
+						min={0}
+						max={currentRound?.toString()}
 						name='round'
 						placeholder={
 							currentRound !== undefined
 								? `Provide round ID up to ${currentRound.toString()}`
 								: currentRoundError
-								? ''
+								? 'Error getting current round'
 								: 'Loading...'
 						}
 						disabled={currentRound === undefined}
@@ -81,9 +95,9 @@ export default function Tickets({ player }: { player: Address }) {
 						</>
 					) : ticketsError ? (
 						<p>There is an error getting your tickets</p>
-					) : (
+					) : ticketsFetching ? (
 						<Loading />
-					)}
+					) : null}
 				</output>
 			</form>
 		</section>
