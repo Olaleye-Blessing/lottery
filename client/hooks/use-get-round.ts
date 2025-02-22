@@ -6,7 +6,7 @@ export const useGetRound = (roundId?: number) => {
 	const { data, ...result } = useReadContract({
 		...letoConfig,
 		functionName: 'getRoundData',
-		args: roundId ? [BigInt(roundId)] : undefined,
+		args: roundId != undefined ? [BigInt(roundId)] : undefined,
 	});
 
 	const round = data && constructRound(data);

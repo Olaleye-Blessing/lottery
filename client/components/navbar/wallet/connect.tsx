@@ -3,7 +3,11 @@
 import { Button } from '@/components/ui/button';
 import { ConnectKitButton } from 'connectkit';
 
-export default function ConnectWalletButton() {
+export default function ConnectWalletButton({
+	label = 'Connect',
+}: {
+	label?: string;
+}) {
 	return (
 		<ConnectKitButton.Custom>
 			{({ isConnected, isConnecting, show, truncatedAddress }) => {
@@ -13,7 +17,7 @@ export default function ConnectWalletButton() {
 							? 'Connecting...'
 							: isConnected
 							? truncatedAddress
-							: 'Connect'}
+							: label}
 					</Button>
 				);
 			}}
