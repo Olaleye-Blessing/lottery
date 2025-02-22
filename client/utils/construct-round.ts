@@ -9,6 +9,20 @@ export type TLotteryNumbers = readonly [
 	number
 ];
 
+export enum RoundStatus {
+	Active,
+	Drawing,
+	RegisterWinningTickets,
+	Claimable,
+}
+
+export const statuses = {
+	[RoundStatus.Active]: 'Active',
+	[RoundStatus.Drawing]: 'Drawing',
+	[RoundStatus.RegisterWinningTickets]: 'RegisterWinningTickets',
+	[RoundStatus.Claimable]: 'Claimable',
+};
+
 export type IContractRound = {
 	id: bigint;
 	startTime: bigint;
@@ -16,6 +30,9 @@ export type IContractRound = {
 	prize: bigint;
 	totalTickets: bigint;
 	winningNumbers: TLotteryNumbers;
+	registerWinningTicketTime: bigint;
+	totalWinningTickets: bigint;
+	status: RoundStatus;
 };
 
 export interface IRound {
@@ -25,6 +42,9 @@ export interface IRound {
 	prize: number;
 	totalTickets: number;
 	winningNumbers: TLotteryNumbers;
+	registerWinningTicketTime: number;
+	totalWinningTickets: number;
+	status: RoundStatus;
 }
 
 export const constructRound = (_round: IContractRound): IRound => {
@@ -35,5 +55,9 @@ export const constructRound = (_round: IContractRound): IRound => {
 		prize: +formatEther(_round.prize),
 		totalTickets: Number(_round.totalTickets),
 		winningNumbers: _round.winningNumbers,
+		registerWinningTicketTime:
+			Number(_round.registerWinningTicketTime) * 1000,
+		totalWinningTickets: Number(_round.totalWinningTickets),
+		status: _round.status as RoundStatus,
 	};
 };

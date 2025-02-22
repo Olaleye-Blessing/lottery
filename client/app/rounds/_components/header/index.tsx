@@ -8,6 +8,7 @@ import CountdownTimer from '@/components/countdown-timer';
 import Period from './period';
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
+import { RoundStatus, statuses } from '@/utils/construct-round';
 
 export default function Header() {
 	const { round, error } = useGetRound();
@@ -40,15 +41,35 @@ export default function Header() {
 								date={round.startTime}
 								className='mr-4'
 							/>
-							<Period label='End Time' date={round.endTime} />
+							<Period
+								label='End Time'
+								date={round.endTime}
+								className='mr-4'
+							/>
+							<div>
+								<p>Status</p>
+								<p className='text-muted-foreground/80 font-medium'>
+									{statuses[round.status]}
+								</p>
+							</div>
 						</div>
 					</div>
 					<div className='flex gap-3 mb-4 flex-wrap justify-start sm:justify-between sm:max-w-96 sm:mx-auto'>
-						<LotteryBall number={'empty'} />
-						<LotteryBall number={'empty'} />
-						<LotteryBall number={'empty'} />
-						<LotteryBall number={'empty'} />
-						<LotteryBall number={'empty'} />
+						{round.status >= RoundStatus.RegisterWinningTickets ? (
+							<>
+								{round.winningNumbers.map((num) => (
+									<LotteryBall key={num} number={num} />
+								))}
+							</>
+						) : (
+							<>
+								<LotteryBall number={'empty'} />
+								<LotteryBall number={'empty'} />
+								<LotteryBall number={'empty'} />
+								<LotteryBall number={'empty'} />
+								<LotteryBall number={'empty'} />
+							</>
+						)}
 					</div>
 					{Date.now() < round.endTime && (
 						<div className='flex items-center justify-center mt-4'>
@@ -70,4 +91,4 @@ export default function Header() {
 			)}
 		</header>
 	);
-};
+}
