@@ -12,15 +12,11 @@ export const letoAbi = parseAbi([
 	'function getRoundData() external view returns (Round memory)',
 	'function buyTicket(uint8[6] calldata numbers) external payable',
 	'function buyTickets(uint8[6][] calldata ticketsNumbers) external payable',
-	'function extendRound() external',
 	'function getPlayerTickets() external view returns (uint256[] memory, Ticket[] memory)',
 	'function getPlayerTickets(uint256 roundId) external view returns (uint256[] memory, Ticket[] memory)',
-	// 'function getPlayerTickets(address player, uint256 roundId) external view returns (uint256[] memory, Ticket[] memory)',
 	'function registerWinningTicket(uint256 ticketId) external',
 	'function registerWinningTicket(uint256 roundId, uint256 ticketId) public',
 	'function claimPrize(uint256 roundId, uint256 ticketId) external',
-	'function drawRound() external',
-	'function makeRoundPrizeClaimable() external',
 
 	// ============ events ============
 	'event TicketPurchased(address indexed player, uint256 indexed roundId, uint8[6] numbers)',

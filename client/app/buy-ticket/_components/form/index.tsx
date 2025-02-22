@@ -76,28 +76,6 @@ export default function Form() {
 		}
 	};
 
-	const extendRound = async () => {
-		const toastId = toast.loading('Extending Round');
-
-		try {
-			const txHash = await writeContractAsync({
-				...letoConfig,
-				functionName: 'extendRound',
-			});
-
-			toast.loading('Confriming Round Hash', { id: toastId });
-
-			await waitForTransactionReceipt(config, {
-				hash: txHash,
-				confirmations: 1,
-			});
-
-			toast.success('Round extended successfully', { id: toastId });
-		} catch (error) {
-			toast.error(getCreateErrMsg(error), { id: toastId });
-		}
-	};
-
 	return (
 		<>
 			<form className='sm:flex sm:items-start sm:justify-between'>
@@ -145,9 +123,6 @@ export default function Form() {
 					</div>
 				</section>
 			</form>
-			<Button type='button' onClick={extendRound}>
-				Extend
-			</Button>
 		</>
 	);
 }
