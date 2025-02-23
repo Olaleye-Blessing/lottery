@@ -13,8 +13,11 @@ import { getCreateErrMsg } from '../../_utils/err-msg';
 import { useGetTicketPrice } from '@/hooks/use-get-ticket-price';
 import EtherLabel from '@/components/ether-label';
 import { ShoppingCart } from 'lucide-react';
+import { useGetRound } from '@/hooks/use-get-round';
+import { RoundStatus } from '@/utils/construct-round';
 
 export default function Form() {
+	const { round } = useGetRound();
 	const { ticketPrice: letoTicketPrice } = useGetTicketPrice();
 	const config = useConfig();
 	const { writeContractAsync } = useWriteContract();
@@ -77,8 +80,11 @@ export default function Form() {
 	};
 
 	return (
-		<>
-			<form className='sm:flex sm:items-start sm:justify-between'>
+		<form>
+			<fieldset
+				disabled={round?.status !== RoundStatus.Active}
+				className='sm:flex sm:items-start sm:justify-between'
+			>
 				<Numbers
 					addTicket={addTicket}
 					creatingTicket={creatingTicket}
@@ -122,7 +128,7 @@ export default function Form() {
 						</Button>
 					</div>
 				</section>
-			</form>
-		</>
+			</fieldset>
+		</form>
 	);
 }

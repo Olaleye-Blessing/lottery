@@ -6,6 +6,7 @@ import EtherLabel from '@/components/ether-label';
 import { useGetRound } from '@/hooks/use-get-round';
 import { useGetTicketPrice } from '@/hooks/use-get-ticket-price';
 import SmallCountdownTimer from '@/components/countdown-timer/small-timer';
+import StatusLabel from '@/components/status-label';
 
 export default function Header() {
 	const { ticketPrice, ticketPriceError } = useGetTicketPrice();
@@ -58,6 +59,10 @@ export default function Header() {
 							)}
 						</div>
 					</div>
+					<StatusLabel
+						status={round.status}
+						className='block mx-auto'
+					/>
 				</>
 			) : error ? (
 				<p className='error'>There is an error</p>

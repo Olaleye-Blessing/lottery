@@ -8,7 +8,8 @@ import CountdownTimer from '@/components/countdown-timer';
 import Period from './period';
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
-import { RoundStatus, statuses } from '@/utils/construct-round';
+import { RoundStatus } from '@/utils/construct-round';
+import StatusLabel from '@/components/status-label';
 
 export default function Header() {
 	const { round, error } = useGetRound();
@@ -32,24 +33,36 @@ export default function Header() {
 								</p>
 							</div>
 						</div>
-						<CountdownTimer targetDate={round.endTime} />
+						<p className='flex items-center justify-center text-muted-foreground/80 font-medium mb-4'>
+							<StatusLabel status={round.status} />
+						</p>
+						<CountdownTimer
+							targetDate={
+								round.status ===
+								RoundStatus.RegisterWinningTickets
+									? round.registerWinningTicketTime
+									: round.endTime
+							}
+						/>
 						<div className='my-4 flex flex-wrap justify-between sm:mx-auto sm:max-w-max'>
 							<Period
 								label='Start Time'
 								date={round.startTime}
-								className='mr-4'
+								className='mr-4 mb-1'
 							/>
 							<Period
 								label='End Time'
 								date={round.endTime}
-								className='mr-4'
+								className='mr-4 mb-1'
 							/>
-							<div>
-								<p>Status</p>
-								<p className='text-muted-foreground/80 font-medium'>
-									{statuses[round.status]}
-								</p>
-							</div>
+							{round.status ===
+								RoundStatus.RegisterWinningTickets && (
+								<Period
+									label='Register winning ticket'
+									date={round.registerWinningTicketTime}
+									className='mb-1'
+								/>
+							)}
 						</div>
 					</div>
 					<div className='flex gap-3 mb-4 flex-wrap justify-start sm:justify-between sm:max-w-96 sm:mx-auto'>

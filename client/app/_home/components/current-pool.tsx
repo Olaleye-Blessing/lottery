@@ -2,12 +2,11 @@
 
 import Loading from '@/app/loading';
 import EtherLabel from '@/components/ether-label';
+import StatusLabel from '@/components/status-label';
 import { useGetRound } from '@/hooks/use-get-round';
 
 export default function CurrentPool() {
 	const { round, error: roundError } = useGetRound();
-
-	console.log(round);
 
 	return (
 		<section className='mt-16 bg-gray-800 rounded-2xl p-8 text-center max-w-2xl mx-auto'>
@@ -21,8 +20,11 @@ export default function CurrentPool() {
 								iconClassName=' text-[1.5rem]'
 							/>
 						</div>
-						<p className='text-gray-400'>
+						<p className='text-gray-400 mb-1'>
 							Total tickets sold: {round.totalTickets}
+						</p>
+						<p>
+							<StatusLabel status={round.status} />
 						</p>
 					</>
 				) : roundError ? (
