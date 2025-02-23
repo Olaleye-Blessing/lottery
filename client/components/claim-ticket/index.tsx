@@ -11,7 +11,13 @@ export const numbersEqual = (
 	JSON.stringify([...ticketNum].sort()) ===
 	JSON.stringify([...roundNum].sort());
 
-export default function ClaimTicket({ id, round, ticket }: ClaimTicketProps) {
+	
+export default function ClaimTicket({
+	id,
+	round,
+	ticket,
+	updateTicket,
+}: ClaimTicketProps) {
 	if (ticket.claimed)
 		return <p className="text-sm text-green-600">Claimed</p>;
 
@@ -26,5 +32,12 @@ export default function ClaimTicket({ id, round, ticket }: ClaimTicketProps) {
 	if (!ticket.resgistered)
 		return <p className="text-red-500 text-sm">Sorry, not registered.</p>;
 
-	return <ClaimTicketButton id={id} round={round} ticket={ticket} />;
+	return (
+		<ClaimTicketButton
+			id={id}
+			round={round}
+			ticket={ticket}
+			updateTicket={updateTicket}
+		/>
+	);
 }

@@ -15,6 +15,7 @@ export default function RegisterTicket({
 	id,
 	round,
 	ticket,
+	updateTicket,
 }: RegisterTicketProps) {
 	if (ticket.resgistered) return <p className='text-sm'>Registered</p>;
 
@@ -25,5 +26,12 @@ export default function RegisterTicket({
 
 	if (!showRegisterBtn) return null;
 
-	return <RegisterTicketButton id={id} round={round} ticket={ticket} />;
+	return (
+		<RegisterTicketButton
+			id={id}
+			round={round}
+			ticket={ticket}
+			updateTicket={updateTicket}
+		/>
+	);
 }

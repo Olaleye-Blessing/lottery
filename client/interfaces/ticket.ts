@@ -13,3 +13,7 @@ export interface ITicket {
 	resgistered: boolean;
 	player: `0x${string}`;
 }
+
+export type IUpdateTicketStatus = Partial<
+	Pick<ITicket, 'claimed' | 'resgistered'>
+>;

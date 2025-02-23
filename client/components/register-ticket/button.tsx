@@ -5,21 +5,27 @@ import { Button } from "../ui/button";
 import { useWriteContract } from "wagmi";
 import toast from "react-hot-toast";
 import { letoConfig } from "@/configs/leto-contract-config";
-import { ITicket } from "@/interfaces/ticket";
+import { ITicket, IUpdateTicketStatus } from "@/interfaces/ticket";
 import { IRound } from "@/utils/construct-round";
 import { formatErrMsg } from "./format-err-msg";
 import { useState } from "react";
+
+
+
+
 
 export interface RegisterTicketButtonProps {
 	ticket: ITicket;
 	id: bigint;
 	round: IRound;
+	updateTicket: (id: bigint, status: IUpdateTicketStatus) => void;
 }
 
 export default function RegisterTicketButton({
 	ticket,
 	id,
 	round,
+	updateTicket,
 }: RegisterTicketButtonProps) {
 	const { writeContractAsync } = useWriteContract();
 	const { confrimHash } = useConfirmTx();
@@ -46,6 +52,7 @@ export default function RegisterTicketButton({
 				"Ticket Regsitered. You can claim your prize any time from now.",
 				{ id: toastId }
 			);
+			updateTicket(id, { resgistered: true });
 		} catch (error) {
 			const msg = formatErrMsg(error);
 

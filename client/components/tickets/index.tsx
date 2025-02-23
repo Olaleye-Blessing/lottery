@@ -1,11 +1,12 @@
 'use client';
 
 import LotteryBall from '@/components/ball';
-import { ITicket } from '@/interfaces/ticket';
+import { ITicket, IUpdateTicketStatus } from '@/interfaces/ticket';
 import { IRound, RoundStatus } from '@/utils/construct-round';
 import RegisterTicket from '@/components/register-ticket';
 import ClaimTicket from '../claim-ticket';
 import StatusLabel from '../status-label';
+import { useState } from 'react';
 
 interface PlayerTicketsProps {
 	tickets: readonly ITicket[];
@@ -15,11 +16,27 @@ interface PlayerTicketsProps {
 }
 
 export default function PlayerTickets({
-	tickets,
+	tickets: _tickets,
 	ids,
 	round,
 	showRoundStatus = false,
 }: PlayerTicketsProps) {
+	const [tickets, setTickets] = useState([..._tickets]);
+
+	const updateTicket = (id: bigint, status: IUpdateTicketStatus) => {
+		setTickets((prev) => {
+			const ticketId = [...ids].findIndex((_id) => _id === id);
+
+			if (id < 0) return prev;
+
+			const newTickects = [...prev];
+
+			newTickects[ticketId] = { ...newTickects[ticketId], ...status };
+
+			return newTickects;
+		});
+	};
+
 	return (
 		<ul>
 			{tickets.map((ticket, index) => {
@@ -58,6 +75,7 @@ export default function PlayerTickets({
 								id={ticketId}
 								round={round}
 								ticket={ticket}
+								updateTicket={updateTicket}
 							/>
 						)}
 						{round.status === RoundStatus.Claimable && (
@@ -65,6 +83,7 @@ export default function PlayerTickets({
 								id={ticketId}
 								round={round}
 								ticket={ticket}
+								updateTicket={updateTicket}
 							/>
 						)}
 					</li>

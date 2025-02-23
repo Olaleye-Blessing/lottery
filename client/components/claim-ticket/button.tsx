@@ -5,22 +5,25 @@ import { Button } from "../ui/button";
 import { useWriteContract } from "wagmi";
 import toast from "react-hot-toast";
 import { letoConfig } from "@/configs/leto-contract-config";
-import { ITicket } from "@/interfaces/ticket";
+import { ITicket, IUpdateTicketStatus } from "@/interfaces/ticket";
 import { IRound } from "@/utils/construct-round";
 import { formatErrMsg } from "./format-err-msg";
 import { useState } from "react";
 import EtherLabel from "../ether-label";
 
+
 export interface ClaimTicketButtonProps {
 	ticket: ITicket;
 	id: bigint;
 	round: IRound;
+	updateTicket: (id: bigint, status: IUpdateTicketStatus) => void;
 }
 
 export default function ClaimTicketButton({
 	ticket,
 	id,
 	round,
+	updateTicket,
 }: ClaimTicketButtonProps) {
 	const { writeContractAsync } = useWriteContract();
 	const { confrimHash } = useConfirmTx();
@@ -43,6 +46,7 @@ export default function ClaimTicketButton({
 			await confrimHash({ txHash });
 
 			toast.success("Funds transferred to your wallet!", { id: toastId });
+			updateTicket(id, { claimed: true });
 		} catch (error) {
 			const msg = formatErrMsg(error);
 
