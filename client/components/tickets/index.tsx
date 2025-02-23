@@ -2,9 +2,10 @@
 
 import LotteryBall from '@/components/ball';
 import { ITicket } from '@/interfaces/ticket';
-import { IRound, RoundStatus, statuses } from '@/utils/construct-round';
+import { IRound, RoundStatus } from '@/utils/construct-round';
 import RegisterTicket from '@/components/register-ticket';
 import ClaimTicket from '../claim-ticket';
+import StatusLabel from '../status-label';
 
 interface PlayerTicketsProps {
 	tickets: readonly ITicket[];
@@ -45,9 +46,10 @@ export default function PlayerTickets({
 								})}
 							</div>
 							{showRoundStatus && (
-								<p className='text-sm mt-2'>
-									{statuses[round.status]}
-								</p>
+								<StatusLabel
+									status={round.status}
+									className='text-sm mt-2'
+								/>
 							)}
 						</div>
 						{round.status ===

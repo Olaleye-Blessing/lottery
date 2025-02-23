@@ -36,7 +36,10 @@ export default function Details({ player }: { player: Address }) {
 						)}
 					</>
 				) : error ? (
-					<></>
+					<p>
+						There is an error getting your tickets. Please try again
+						later
+					</p>
 				) : (
 					<Loading />
 				)}

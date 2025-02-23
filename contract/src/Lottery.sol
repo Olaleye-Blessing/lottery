@@ -363,6 +363,16 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         }
     }
 
+    /// @notice Get tickets owned by a specific player in the current round
+    /// @return Array of ticket IDs and array of ticket details
+    function getPlayerTickets()
+        external
+        view
+        returns (uint256[] memory, Ticket[] memory)
+    {
+        return _getPlayerTickets(msg.sender, currentRound);
+    }
+
     /// @notice Get tickets owned by a specific player in a round
     /// @param player Address of the player
     /// @param roundId ID of the round
