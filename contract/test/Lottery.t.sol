@@ -42,7 +42,6 @@ contract LotteryTest is Test {
 
         lottery.setForwarderAddress(chainlinkAutomationForwarder);
         vm.stopPrank();
-
     }
 
     function test_roundStartAtZero() external view {
@@ -205,7 +204,9 @@ contract LotteryTest is Test {
 
         vm.expectEmit(true, true, true, true, address(lottery));
         emit Lottery.RoundDrawn(currentRound);
-        VRFCoordinatorV2_5Mock(config.vrfCoordinator).fulfillRandomWordsWithOverride(requestId, address(lottery), _mockCorrectRandomNumbers());
+        VRFCoordinatorV2_5Mock(config.vrfCoordinator).fulfillRandomWordsWithOverride(
+            requestId, address(lottery), _mockCorrectRandomNumbers()
+        );
 
         round = lottery.getRoundData(currentRound);
 
@@ -484,7 +485,9 @@ contract LotteryTest is Test {
 
         vm.prank(DEPLOYER);
         uint256 requestId = lottery.getRoundRequestId(round);
-        VRFCoordinatorV2_5Mock(config.vrfCoordinator).fulfillRandomWordsWithOverride(requestId, address(lottery), _mockCorrectRandomNumbers());
+        VRFCoordinatorV2_5Mock(config.vrfCoordinator).fulfillRandomWordsWithOverride(
+            requestId, address(lottery), _mockCorrectRandomNumbers()
+        );
 
         return (upkeepNeeded, performData);
     }
@@ -552,7 +555,7 @@ contract LotteryTest is Test {
         _makeRoundClaimable();
     }
 
-    function _mockCorrectRandomNumbers() private view returns(uint256[] memory) {
+    function _mockCorrectRandomNumbers() private view returns (uint256[] memory) {
         uint256[] memory randomWords = new uint256[](6);
 
         // uint8[6] private MOCK_CORRECT_RANDOM_NUMBERS = [1, 25, 36, 47, 58, 99];

@@ -23,6 +23,10 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.get('/', (req, res) => {
+  return res.status(200).json({ status: 'ok' });
+});
+
 app.use('/api/v1/leto', letoRoute);
 
 app.use(globalErrorHanlder);
